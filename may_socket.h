@@ -2,6 +2,28 @@
 #define AILERON_SOCKET_H
 
 /*
+* The MIT License (MIT)
+*
+* Copyright (c) 2023 Malakhov Artyom
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy of this softwareand
+* associated documentation files(the УSoftwareФ), to deal in the Software without restriction,
+* including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+* and /or sell copies of the Software, and to permit persons to whom the Software is furnished to do
+* so, subject to the following conditions :
+*
+* The above copyright noticeand this permission notice shall be included in all copies or substantial
+* portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED УAS ISФ, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+* FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS
+* OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+* WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+* CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+/*
 * Ѕиблиотека инкапсул€ции сокетов Ѕеркли.
 * ƒл€ Windows не забудь подключить библиотеку Ws2_32.lib 
 */
@@ -193,7 +215,7 @@ public:
 
 	~UDPSocket()
 	{
-		//closesocket(sock);
+		closesocket(sock);
 	}
 
 	/*!
@@ -208,50 +230,7 @@ public:
 		if (sock == INVALID_SOCKET)
 		{
 			error = WSAGetLastError();
-			std::ostringstream oss;
-			oss << error << std::endl;
-			errorStr = "socket not created, error: " + oss.str();
-		}
-		else
-		{
-			error = 0;
-		}
-	}
-
-	/*!
-	* ‘ункци€ закрывает сокет.
-	*/
-	void Close()
-	{
-		result = closesocket(sock);
-
-		if (result == SOCKET_ERROR)
-		{
-			error = WSAGetLastError();
-			std::ostringstream oss;
-			oss << error << std::endl;
-			errorStr = "socket not closed, error: " + oss.str();
-		}
-		else
-		{
-			error = 0;
-			sock = 0;
-		}
-	}
-
-	/*!
-	* ‘ункци€ устанавливает дополнительные параметры сокета
-	*/
-	void SetSocketOptions(const int& level, const int& name, const char* data, const int& size)
-	{
-		result = setsockopt(sock, level, name, data, size);
-
-		if (result == SOCKET_ERROR)
-		{
-			error = WSAGetLastError();
-			std::ostringstream oss;
-			oss << error << std::endl;
-			errorStr = "socket not closed, error: " + oss.str();
+			errorStr = "socket not created, error: " + std::to_string(error);
 		}
 		else
 		{
@@ -271,9 +250,7 @@ public:
 		if (result == SOCKET_ERROR)
 		{
 			error = WSAGetLastError();
-			std::ostringstream oss;
-			oss << error << std::endl;
-			errorStr = "socket not bind, error: " + oss.str();
+			errorStr = "socket not bind, error: " + std::to_string(error);
 		}
 		else
 		{
@@ -285,7 +262,7 @@ public:
 	* ‘ункци€ устанавливает сокет в неблокирующий режим.
 	* \return ложь, если режим установлен, иначе истину.
 	*/
-	void SetNonBlockingMode()
+	bool SetNonBlockingMode()
 	{
 		unsigned long arg = 1;
 
@@ -294,9 +271,7 @@ public:
 		if (result == SOCKET_ERROR)
 		{
 			error = WSAGetLastError();
-			std::ostringstream oss;
-			oss << error << std::endl;
-			errorStr = "blocking mode is not set, error: " + oss.str();
+			errorStr = "blocking mode is not set, error: " + std::to_string(error);
 		}
 		else
 		{
@@ -377,9 +352,6 @@ public:
 		}
 	}
 
-	/*!
-	* ‘ункци€ закрывает сокет.
-	*/
 	void Close()
 	{
 		result = closesocket(sock);

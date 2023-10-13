@@ -1,6 +1,28 @@
 #ifndef MAY_JSON_H
 #define MAY_JSON_H
 
+/*
+* The MIT License (MIT)
+* 
+* Copyright (c) 2023 Malakhov Artyom
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy of this softwareand
+* associated documentation files(the “Software”), to deal in the Software without restriction,
+* including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
+* and /or sell copies of the Software, and to permit persons to whom the Software is furnished to do
+* so, subject to the following conditions :
+*
+* The above copyright noticeand this permission notice shall be included in all copies or substantial
+* portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+* FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE AUTHORS
+* OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+* WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+* CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 #include <fstream>
 #include <deque>
 #include <string>
@@ -404,6 +426,18 @@ public:
         return 0;
     }
 
+    JSON* GetValueByKey(const char* key, JSONObject* jsonPtr)
+    {
+        for (uint32_t i = 0; i < jsonPtr->pairs.size(); ++i)
+        {
+            if (std::strcmp(jsonPtr->pairs[i].first.c_str(), key) == 0)
+            {
+                return jsonPtr->pairs[i].second;
+            }
+        }
+        return 0;
+    }
+
     JSON* GetMainObject()
     {
         return object;
@@ -437,8 +471,26 @@ private:
         std::string str;
         for (currentPos; currentPos < json.size(); ++currentPos)
         {
+            if (currentPos + 3 < json.size())
+            {
+                std::string boolStr;
+                boolStr.resize(4);
+                boolStr[0] = json[currentPos];
+                boolStr[1] = json[currentPos + 1];
+                boolStr[2] = json[currentPos + 2];
+                boolStr[3] = json[currentPos + 3];
+
+                if (boolStr == "true")
+                    return "1";
+                else if (boolStr == "false")
+                    return "0";
+                else if (boolStr == "null")
+                    return "0";
+            }
+
             if ((0x30 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x39) ||
-                static_cast<uint8_t>(json[currentPos]) == 0x2E || static_cast<uint8_t>(json[currentPos]) == 0x2D) //(json[currentPos] != ',' && json[currentPos] != '\r' && json[currentPos] != '\n')
+                static_cast<uint8_t>(json[currentPos]) == 0x2E || static_cast<uint8_t>(json[currentPos]) == 0x2D ||
+                static_cast<uint8_t>(json[currentPos]) == 0x45 || static_cast<uint8_t>(json[currentPos]) == 0x65)
                 str += json[currentPos];
             else
                 return str;
