@@ -100,9 +100,22 @@ struct JSONArray : public JSONValue
 	std::deque<JSONValue*> array;
 };
 
-struct JSONString : public JSONValue
+struct JSONText : public JSONValue
 {
-    virtual ~JSONString()
+    JSONText()
+        : JSONValue()
+    {
+
+    }
+
+    JSONText(const char* str, ValueType _type)
+        : JSONValue()
+    {
+        type = _type;
+        string = str;
+    }
+
+    virtual ~JSONText()
     {
 
     }
@@ -116,12 +129,230 @@ public:
 	JSON()
 	{
 		currentPos = 0;
-		object = 0;
+		mainObject = 0;
 	}
 
     ~JSON()
     {
-        delete object;
+        Clear();
+    }
+
+    void Clear()
+    {
+        delete mainObject;
+        mainObject = 0;
+    }
+
+    /*!
+    * \param [in] key
+    * \param [in] jsonObjectPtr Pointer to add a new object or nullptr.
+    * \return Pointer to new object.
+    */
+    JSONObject* AddObjectValue(const char* key, JSONObject* jsonObjectPtr)
+    {
+        if (!mainObject)
+        {
+            mainObject = new JSONObject;
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+        else if (!jsonObjectPtr)
+        {
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+
+        jsonObjectPtr->pairs.push_back(std::pair<std::string, JSONValue*>(key, new JSONObject));
+        return static_cast<JSONObject*>(jsonObjectPtr->pairs.back().second);
+    }
+
+    /*!
+    * \param [in] jsonArrayPtr Pointer to add a new object.
+    * \return Pointer to new object or nullptr.
+    */
+    JSONObject* AddObjectValue(JSONArray* jsonArrayPtr)
+    {
+        if (!jsonArrayPtr)
+            return 0;
+
+        jsonArrayPtr->array.push_back(new JSONObject);
+        return static_cast<JSONObject*>(jsonArrayPtr->array.back());
+    }
+
+    /*!
+    * \param [in] key
+    * \param [in] jsonObjectPtr Pointer to add a new array or nullptr.
+    * \return Pointer to new array.
+    */
+    JSONArray* AddArrayValue(const char* key, JSONObject* jsonObjectPtr)
+    {
+        if (!mainObject)
+        {
+            mainObject = new JSONObject;
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+        else if (!jsonObjectPtr)
+        {
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+
+        jsonObjectPtr->pairs.push_back(std::pair<std::string, JSONValue*>(key, new JSONArray));
+        return static_cast<JSONArray*>(jsonObjectPtr->pairs.back().second);
+    }
+
+    /*!
+    * \param [in] jsonArrayPtr Pointer to add a new array.
+    * \return Pointer to new array or nullptr.
+    */
+    JSONArray* AddArrayValue(JSONArray* jsonArrayPtr)
+    {
+        if (!jsonArrayPtr)
+            return 0;
+
+        jsonArrayPtr->array.push_back(new JSONArray);
+        return static_cast<JSONArray*>(jsonArrayPtr->array.back());
+    }
+
+    /*!
+    * \param [in] key
+    * \param [in] str
+    * \param [in] jsonObjectPtr Pointer to add a new string or nullptr.
+    * \return Pointer to new string.
+    */
+    JSONText* AddStringValue(const char* key, const char* str, JSONObject* jsonObjectPtr)
+    {
+        if (!mainObject)
+        {
+            mainObject = new JSONObject;
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+        else if (!jsonObjectPtr)
+        {
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+
+        jsonObjectPtr->pairs.push_back(std::pair<std::string, JSONValue*>(key, new JSONText(str, STRING)));
+        return static_cast<JSONText*>(jsonObjectPtr->pairs.back().second);
+    }
+
+    /*!
+    * \param [in] str
+    * \param [in] jsonArrayPtr Pointer to add a new string.
+    * \return Pointer to new string or nullptr.
+    */
+    JSONText* AddStringValue(const char* str, JSONArray* jsonArrayPtr)
+    {
+        if (!jsonArrayPtr)
+            return 0;
+
+        jsonArrayPtr->array.push_back(new JSONText(str, STRING));
+        return static_cast<JSONText*>(jsonArrayPtr->array.back());
+    }
+
+    /*!
+    * \param [in] key
+    * \param [in] number
+    * \param [in] jsonObjectPtr Pointer to add a new number or nullptr.
+    * \return Pointer to new number.
+    */
+    JSONText* AddNumberValue(const char* key, const char* number, JSONObject* jsonObjectPtr)
+    {
+        if (!mainObject)
+        {
+            mainObject = new JSONObject;
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+        else if (!jsonObjectPtr)
+        {
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+
+        jsonObjectPtr->pairs.push_back(std::pair<std::string, JSONValue*>(key, new JSONText(number, NUMBER)));
+        return static_cast<JSONText*>(jsonObjectPtr->pairs.back().second);
+    }
+
+    /*!
+    * \param [in] number
+    * \param [in] jsonArrayPtr Pointer to add a new number.
+    * \return Pointer to new number or nullptr.
+    */
+    JSONText* AddNumberValue(const char* number, JSONArray* jsonArrayPtr)
+    {
+        if (!jsonArrayPtr)
+            return 0;
+
+        jsonArrayPtr->array.push_back(new JSONText(number, NUMBER));
+        return static_cast<JSONText*>(jsonArrayPtr->array.back());
+    }
+
+    /*!
+    * \param [in] key
+    * \param [in] boolean
+    * \param [in] jsonObjectPtr Pointer to add a new bool or nullptr.
+    * \return Pointer to new bool.
+    */
+    JSONText* AddBoolValue(const char* key, const char* boolean, JSONObject* jsonObjectPtr)
+    {
+        if (!mainObject)
+        {
+            mainObject = new JSONObject;
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+        else if (!jsonObjectPtr)
+        {
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+
+        jsonObjectPtr->pairs.push_back(std::pair<std::string, JSONValue*>(key, new JSONText(boolean, BOOL)));
+        return static_cast<JSONText*>(jsonObjectPtr->pairs.back().second);
+    }
+
+    /*!
+    * \param [in] boolean
+    * \param [in] jsonArrayPtr Pointer to add a new boolean.
+    * \return Pointer to new boolean or nullptr.
+    */
+    JSONText* AddBoolValue(const char* boolean, JSONArray* jsonArrayPtr)
+    {
+        if (!jsonArrayPtr)
+            return 0;
+
+        jsonArrayPtr->array.push_back(new JSONText(boolean, BOOL));
+        return static_cast<JSONText*>(jsonArrayPtr->array.back());
+    }
+
+    /*!
+    * \param [in] key
+    * \param [in] null
+    * \param [in] jsonObjectPtr Pointer to add a new null or nullptr.
+    * \return Pointer to new null.
+    */
+    JSONText* AddNullValue(const char* key, const char* null, JSONObject* jsonObjectPtr)
+    {
+        if (!mainObject)
+        {
+            mainObject = new JSONObject;
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+        else if (!jsonObjectPtr)
+        {
+            jsonObjectPtr = static_cast<JSONObject*>(mainObject);
+        }
+
+        jsonObjectPtr->pairs.push_back(std::pair<std::string, JSONValue*>(key, new JSONText(null, NULLPTR)));
+        return static_cast<JSONText*>(jsonObjectPtr->pairs.back().second);
+    }
+
+    /*!
+    * \param [in] null
+    * \param [in] jsonArrayPtr Pointer to add a new null.
+    * \return Pointer to new null or nullptr.
+    */
+    JSONText* AddNullValue(const char* null, JSONArray* jsonArrayPtr)
+    {
+        if (!jsonArrayPtr)
+            return 0;
+
+        jsonArrayPtr->array.push_back(new JSONText(null, NULLPTR));
+        return static_cast<JSONText*>(jsonArrayPtr->array.back());
     }
 
     /*!
@@ -173,7 +404,7 @@ public:
         std::ofstream outFile(fileName, std::ios::out);
         std::ostringstream oss;
         std::string tab;
-        BuildJSON(object, oss, tab);
+        BuildJSON(mainObject, oss, tab);
         outFile << oss.str();
         outFile.close();
     }
@@ -186,7 +417,7 @@ public:
     {
         std::ostringstream oss;
         std::string tab;
-        BuildJSON(object, oss, tab);
+        BuildJSON(mainObject, oss, tab);
         json = oss.str();
     }
 
@@ -224,14 +455,14 @@ public:
     /*!
     * \return String value or nullptr.
     */
-    JSONString* GetStringValue(JSONValue* value)
+    JSONText* GetStringValue(JSONValue* value)
     {
-        return (value && (value->type == STRING || value->type == NUMBER || value->type == BOOL || value->type == NULLPTR)) ? static_cast<JSONString*>(value) : 0;
+        return (value && (value->type == STRING || value->type == NUMBER || value->type == BOOL || value->type == NULLPTR)) ? static_cast<JSONText*>(value) : 0;
     }
 
     JSONObject* GetMainObject()
     {
-        return static_cast<JSONObject*>(object);
+        return static_cast<JSONObject*>(mainObject);
     }
 
 private:
@@ -289,8 +520,8 @@ private:
                     ++currentPos;
                     str = GetString(json);
 
-                    *newPtr = new JSONString;
-                    reinterpret_cast<JSONString*>(*newPtr)->string = str;
+                    *newPtr = new JSONText;
+                    reinterpret_cast<JSONText*>(*newPtr)->string = str;
                     (*newPtr)->type = STRING;
 
                     (*newPtr)->previousPtr = currentObjectPtr;
@@ -301,8 +532,8 @@ private:
                 {
                     std::pair<std::string, ValueType> p = GetNumber(json);
 
-                    *newPtr = new JSONString;
-                    reinterpret_cast<JSONString*>(*newPtr)->string = p.first;
+                    *newPtr = new JSONText;
+                    reinterpret_cast<JSONText*>(*newPtr)->string = p.first;
                     (*newPtr)->type = p.second;
 
                     (*newPtr)->previousPtr = currentObjectPtr;
@@ -319,10 +550,10 @@ private:
             {
             case '{':
             {
-                if (!object)
+                if (!mainObject)
                 {
-                    object = new JSONObject;
-                    currentObjectPtr = object;
+                    mainObject = new JSONObject;
+                    currentObjectPtr = mainObject;
                 }
                 else
                 {
@@ -344,7 +575,7 @@ private:
                 JSONArray* tempPtr = dynamic_cast<JSONArray*>(currentObjectPtr);
                 if (tempPtr)
                 {
-                    JSONString* value = new JSONString;
+                    JSONText* value = new JSONText;
                     value->string = str;
                     value->previousPtr = tempPtr;
 
@@ -392,7 +623,7 @@ private:
                 {
                     std::pair<std::string, ValueType> p = GetNumber(json);
 
-                    JSONString* value = new JSONString;
+                    JSONText* value = new JSONText;
                     value->string = p.first;
                     value->type = p.second;
                     value->previousPtr = tempPtr;
@@ -454,13 +685,13 @@ private:
             oss << tab << "]";
             break;
         case STRING:
-            oss << '"' << static_cast<JSONString*>(value)->string << '"';
+            oss << '"' << static_cast<JSONText*>(value)->string << '"';
             break;
         case NUMBER:
-            oss << static_cast<JSONString*>(value)->string;
+            oss << static_cast<JSONText*>(value)->string;
             break;
         case BOOL:
-            oss << std::boolalpha << static_cast<bool>(std::atoi(static_cast<JSONString*>(value)->string.c_str())) << std::noboolalpha;
+            oss << std::boolalpha << static_cast<bool>(std::atoi(static_cast<JSONText*>(value)->string.c_str())) << std::noboolalpha;
             break;
         case NULLPTR:
             oss << "null";
@@ -534,7 +765,7 @@ private:
     }
 
 	uint32_t currentPos; //current positon symbol in JSON data
-	JSONValue* object;   //main object JSON
+	JSONValue* mainObject;   //main object JSON
 };
 
 }
