@@ -47,24 +47,24 @@ enum ValueType
     NULLPTR
 };
 
-struct JSON
+struct JSONValue
 {
-	JSON()
+	JSONValue()
 	{
 		previousPtr = 0;
         type = NONE;
 	}
 
-    virtual ~JSON()
+    virtual ~JSONValue()
     {
 
     }
 
-	JSON* previousPtr;
+	JSONValue* previousPtr;
     ValueType type;
 };
 
-struct JSONObject : public JSON
+struct JSONObject : public JSONValue
 {
     JSONObject()
     {
@@ -79,10 +79,10 @@ struct JSONObject : public JSON
         }
     }
 
-	std::deque<std::pair<std::string, JSON*> > pairs;
+	std::deque<std::pair<std::string, JSONValue*> > pairs;
 };
 
-struct JSONArray : public JSON
+struct JSONArray : public JSONValue
 {
     JSONArray()
     {
@@ -97,10 +97,10 @@ struct JSONArray : public JSON
         }
     }
 
-	std::deque<JSON*> array;
+	std::deque<JSONValue*> array;
 };
 
-struct JSONString : public JSON
+struct JSONString : public JSONValue
 {
     virtual ~JSONString()
     {
@@ -110,16 +110,16 @@ struct JSONString : public JSON
 	std::string string;
 };
 
-class JSONParsing
+class JSON
 {
 public:
-	JSONParsing()
+	JSON()
 	{
 		currentPos = 0;
 		object = 0;
 	}
 
-    ~JSONParsing()
+    ~JSON()
     {
         delete object;
     }
@@ -193,7 +193,7 @@ public:
     /*!
     * \return Value or nullptr.
     */
-    JSON* FindValueByKey(const char* key, JSONObject* jsonPtr)
+    JSONValue* FindValueByKey(const char* key, JSONObject* jsonPtr)
     {
         for (uint32_t i = 0; i < jsonPtr->pairs.size(); ++i)
         {
@@ -208,7 +208,7 @@ public:
     /*!
     * \return Object value or nullptr.
     */
-    JSONObject* GetObjectValue(JSON* value)
+    JSONObject* GetObjectValue(JSONValue* value)
     {
         return (value && value->type == OBJECT) ? static_cast<JSONObject*>(value) : 0;
     }
@@ -216,7 +216,7 @@ public:
     /*!
     * \return Array value or nullptr.
     */
-    JSONArray* GetArrayValue(JSON* value)
+    JSONArray* GetArrayValue(JSONValue* value)
     {
         return (value && value->type == ARRAY) ? static_cast<JSONArray*>(value) : 0;
     }
@@ -224,7 +224,7 @@ public:
     /*!
     * \return String value or nullptr.
     */
-    JSONString* GetStringValue(JSON* value)
+    JSONString* GetStringValue(JSONValue* value)
     {
         return (value && (value->type == STRING || value->type == NUMBER || value->type == BOOL || value->type == NULLPTR)) ? static_cast<JSONString*>(value) : 0;
     }
@@ -241,8 +241,8 @@ private:
     */
     bool Parsing(std::string& json)
     {
-        JSON* currentObjectPtr = 0; //current object, that is being initialized
-        JSON** newPtr = 0;          //pointer to pointer for memory allocation
+        JSONValue* currentObjectPtr = 0; //current object, that is being initialized
+        JSONValue** newPtr = 0;          //pointer to pointer for memory allocation
 
         if (json.size() > 3)
         {
@@ -355,7 +355,7 @@ private:
             case ':':
             {
                 JSONObject* tempPtr = reinterpret_cast<JSONObject*>(currentObjectPtr);
-                tempPtr->pairs.push_back(std::pair<std::string, JSON*>(str, 0));
+                tempPtr->pairs.push_back(std::pair<std::string, JSONValue*>(str, 0));
 
                 newPtr = &tempPtr->pairs.back().second;
                 valueFlag = true;
@@ -415,20 +415,20 @@ private:
     * \param [in] oss Reference to string stream.
     * \param [in] tab Reference to tabulation string.
     */
-    void BuildJSON(JSON* jsonPtr, std::ostringstream& oss, std::string& tab)
+    void BuildJSON(JSONValue* value, std::ostringstream& oss, std::string& tab)
     {
-        switch (jsonPtr->type)
+        switch (value->type)
         {
         case OBJECT:
             oss << "{\n";
             tab += '\t';
 
-            for (uint32_t i = 0; i < static_cast<JSONObject*>(jsonPtr)->pairs.size(); ++i)
+            for (uint32_t i = 0; i < static_cast<JSONObject*>(value)->pairs.size(); ++i)
             {
-                oss << tab << '"' << static_cast<JSONObject*>(jsonPtr)->pairs[i].first.c_str() << '"' << ':';
-                BuildJSON(static_cast<JSONObject*>(jsonPtr)->pairs[i].second, oss, tab);
+                oss << tab << '"' << static_cast<JSONObject*>(value)->pairs[i].first.c_str() << '"' << ':';
+                BuildJSON(static_cast<JSONObject*>(value)->pairs[i].second, oss, tab);
 
-                if (i < static_cast<JSONObject*>(jsonPtr)->pairs.size() - 1)
+                if (i < static_cast<JSONObject*>(value)->pairs.size() - 1)
                     oss << ',';
                 oss << '\n';
             }
@@ -440,12 +440,12 @@ private:
             oss << "[\n";
             tab += '\t';
 
-            for (uint32_t i = 0; i < static_cast<JSONArray*>(jsonPtr)->array.size(); ++i)
+            for (uint32_t i = 0; i < static_cast<JSONArray*>(value)->array.size(); ++i)
             {
                 oss << tab;
-                BuildJSON((static_cast<JSONArray*>(jsonPtr)->array[i]), oss, tab);
+                BuildJSON((static_cast<JSONArray*>(value)->array[i]), oss, tab);
 
-                if (i < static_cast<JSONArray*>(jsonPtr)->array.size() - 1)
+                if (i < static_cast<JSONArray*>(value)->array.size() - 1)
                     oss << ',';
                 oss << '\n';
             }
@@ -454,13 +454,13 @@ private:
             oss << tab << "]";
             break;
         case STRING:
-            oss << '"' << static_cast<JSONString*>(jsonPtr)->string << '"';
+            oss << '"' << static_cast<JSONString*>(value)->string << '"';
             break;
         case NUMBER:
-            oss << static_cast<JSONString*>(jsonPtr)->string;
+            oss << static_cast<JSONString*>(value)->string;
             break;
         case BOOL:
-            oss << std::boolalpha << static_cast<bool>(std::atoi(static_cast<JSONString*>(jsonPtr)->string.c_str())) << std::noboolalpha;
+            oss << std::boolalpha << static_cast<bool>(std::atoi(static_cast<JSONString*>(value)->string.c_str())) << std::noboolalpha;
             break;
         case NULLPTR:
             oss << "null";
@@ -534,7 +534,7 @@ private:
     }
 
 	uint32_t currentPos; //current positon symbol in JSON data
-	JSON* object;        //main object JSON
+	JSONValue* object;   //main object JSON
 };
 
 }
