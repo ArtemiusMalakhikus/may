@@ -30,7 +30,7 @@
 #include <chrono>
 #endif
 
-namespace may_timer
+namespace may
 {
 
 class Timer

@@ -27,7 +27,7 @@
 #include <iterator>
 #include <vector>
 
-namespace may_utf
+namespace may
 {
 
 union Symbol

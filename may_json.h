@@ -29,17 +29,30 @@
 */
 
 #include <fstream>
-#include <deque>
+#include <sstream>
 #include <string>
+#include <deque>
 
-namespace may_json
+namespace may
 {
+
+enum ValueType
+{
+    NONE,
+    OBJECT,
+    ARRAY,
+    STRING,
+    NUMBER,
+    BOOL,
+    NULLPTR
+};
 
 struct JSON
 {
 	JSON()
 	{
 		previousPtr = 0;
+        type = NONE;
 	}
 
     virtual ~JSON()
@@ -48,10 +61,16 @@ struct JSON
     }
 
 	JSON* previousPtr;
+    ValueType type;
 };
 
 struct JSONObject : public JSON
 {
+    JSONObject()
+    {
+        type = OBJECT;
+    }
+
     virtual ~JSONObject()
     {
         for (uint32_t i = 0; i < pairs.size(); ++i)
@@ -65,6 +84,11 @@ struct JSONObject : public JSON
 
 struct JSONArray : public JSON
 {
+    JSONArray()
+    {
+        type = ARRAY;
+    }
+
     virtual ~JSONArray()
     {
         for (uint32_t i = 0; i < array.size(); ++i)
@@ -76,14 +100,14 @@ struct JSONArray : public JSON
 	std::deque<JSON*> array;
 };
 
-struct JSONValue : public JSON
+struct JSONString : public JSON
 {
-    virtual ~JSONValue()
+    virtual ~JSONString()
     {
 
     }
 
-	std::string value;
+	std::string string;
 };
 
 class JSONParsing
@@ -100,6 +124,10 @@ public:
         delete object;
     }
 
+    /*!
+    * \brief Reading a file from the json format.
+    * \param [in] fileName File name with extension.
+    */
 	bool Read(const char* fileName)
     {
         std::ifstream file(fileName, std::ios::in | std::ios::binary);
@@ -124,12 +152,89 @@ public:
         return false;
     }
 
+    /*!
+    * \brief Reading a string from the json format.
+    * \param [in] json String data.
+    * \param [in] pos Begin position is the string.
+    */
     bool Read(std::string& json, uint32_t pos)
     {
         currentPos = pos;
         Parsing(json);
         return false;
     }
+
+    /*!
+    * \brief Writing json to file.
+    * \param [in] fileName File name with extension.
+    */
+    void Write(const char* fileName)
+    {
+        std::ofstream outFile(fileName, std::ios::out);
+        std::ostringstream oss;
+        std::string tab;
+        BuildJSON(object, oss, tab);
+        outFile << oss.str();
+        outFile.close();
+    }
+
+    /*!
+    * \brief Writing json to string.
+    * \param [in] json Reference to string data.
+    */
+    void Write(std::string& json)
+    {
+        std::ostringstream oss;
+        std::string tab;
+        BuildJSON(object, oss, tab);
+        json = oss.str();
+    }
+
+    /*!
+    * \return Value or nullptr.
+    */
+    JSON* FindValueByKey(const char* key, JSONObject* jsonPtr)
+    {
+        for (uint32_t i = 0; i < jsonPtr->pairs.size(); ++i)
+        {
+            if (std::strcmp(jsonPtr->pairs[i].first.c_str(), key) == 0)
+            {
+                return jsonPtr->pairs[i].second;
+            }
+        }
+        return 0;
+    }
+
+    /*!
+    * \return Object value or nullptr.
+    */
+    JSONObject* GetObjectValue(JSON* value)
+    {
+        return (value && value->type == OBJECT) ? static_cast<JSONObject*>(value) : 0;
+    }
+
+    /*!
+    * \return Array value or nullptr.
+    */
+    JSONArray* GetArrayValue(JSON* value)
+    {
+        return (value && value->type == ARRAY) ? static_cast<JSONArray*>(value) : 0;
+    }
+
+    /*!
+    * \return String value or nullptr.
+    */
+    JSONString* GetStringValue(JSON* value)
+    {
+        return (value && (value->type == STRING || value->type == NUMBER || value->type == BOOL || value->type == NULLPTR)) ? static_cast<JSONString*>(value) : 0;
+    }
+
+    JSONObject* GetMainObject()
+    {
+        return static_cast<JSONObject*>(object);
+    }
+
+private:
 
     /*!
     * \brief Function parses JSON.
@@ -182,10 +287,11 @@ public:
                 case '\"':
                 {
                     ++currentPos;
-                    str = GetStr(json);
+                    str = GetString(json);
 
-                    *newPtr = new JSONValue;
-                    reinterpret_cast<JSONValue*>(*newPtr)->value = str;
+                    *newPtr = new JSONString;
+                    reinterpret_cast<JSONString*>(*newPtr)->string = str;
+                    (*newPtr)->type = STRING;
 
                     (*newPtr)->previousPtr = currentObjectPtr;
                     valueFlag = false;
@@ -193,10 +299,11 @@ public:
                 }
                 default:
                 {
-                    str = GetVal(json);
+                    std::pair<std::string, ValueType> p = GetNumber(json);
 
-                    *newPtr = new JSONValue;
-                    reinterpret_cast<JSONValue*>(*newPtr)->value = str;
+                    *newPtr = new JSONString;
+                    reinterpret_cast<JSONString*>(*newPtr)->string = p.first;
+                    (*newPtr)->type = p.second;
 
                     (*newPtr)->previousPtr = currentObjectPtr;
                     valueFlag = false;
@@ -232,13 +339,13 @@ public:
             case '\"':
             {
                 ++currentPos;
-                str = GetStr(json);
+                str = GetString(json);
 
                 JSONArray* tempPtr = dynamic_cast<JSONArray*>(currentObjectPtr);
                 if (tempPtr)
                 {
-                    JSONValue* value = new JSONValue;
-                    value->value = str;
+                    JSONString* value = new JSONString;
+                    value->string = str;
                     value->previousPtr = tempPtr;
 
                     tempPtr->array.push_back(value);
@@ -283,10 +390,11 @@ public:
                 JSONArray* tempPtr = dynamic_cast<JSONArray*>(currentObjectPtr);
                 if (tempPtr)
                 {
-                    str = GetVal(json);
+                    std::pair<std::string, ValueType> p = GetNumber(json);
 
-                    JSONValue* value = new JSONValue;
-                    value->value = str;
+                    JSONString* value = new JSONString;
+                    value->string = p.first;
+                    value->type = p.second;
                     value->previousPtr = tempPtr;
 
                     tempPtr->array.push_back(value);
@@ -301,37 +409,67 @@ public:
         return false;
     }
 
-	JSON* GetValueByKey(const char* key)
+    /*!
+    * \brief Function recursively build data in json format.
+    * \param [in] jsonPtr Pointer to json value.
+    * \param [in] oss Reference to string stream.
+    * \param [in] tab Reference to tabulation string.
+    */
+    void BuildJSON(JSON* jsonPtr, std::ostringstream& oss, std::string& tab)
     {
-        JSONObject* tempPtr = reinterpret_cast<JSONObject*>(object);
-        for (uint32_t i = 0; i < tempPtr->pairs.size(); ++i)
+        switch (jsonPtr->type)
         {
-            if (std::strcmp(tempPtr->pairs[i].first.c_str(), key) == 0)
+        case OBJECT:
+            oss << "{\n";
+            tab += '\t';
+
+            for (uint32_t i = 0; i < static_cast<JSONObject*>(jsonPtr)->pairs.size(); ++i)
             {
-                return tempPtr->pairs[i].second;
-            }
-        }
-        return 0;
-    }
+                oss << tab << '"' << static_cast<JSONObject*>(jsonPtr)->pairs[i].first.c_str() << '"' << ':';
+                BuildJSON(static_cast<JSONObject*>(jsonPtr)->pairs[i].second, oss, tab);
 
-    JSON* GetValueByKey(const char* key, JSONObject* jsonPtr)
-    {
-        for (uint32_t i = 0; i < jsonPtr->pairs.size(); ++i)
-        {
-            if (std::strcmp(jsonPtr->pairs[i].first.c_str(), key) == 0)
+                if (i < static_cast<JSONObject*>(jsonPtr)->pairs.size() - 1)
+                    oss << ',';
+                oss << '\n';
+            }
+
+            tab.erase(tab.size() - 1, 1);
+            oss << tab << "}";
+            break;
+        case ARRAY:
+            oss << "[\n";
+            tab += '\t';
+
+            for (uint32_t i = 0; i < static_cast<JSONArray*>(jsonPtr)->array.size(); ++i)
             {
-                return jsonPtr->pairs[i].second;
+                oss << tab;
+                BuildJSON((static_cast<JSONArray*>(jsonPtr)->array[i]), oss, tab);
+
+                if (i < static_cast<JSONArray*>(jsonPtr)->array.size() - 1)
+                    oss << ',';
+                oss << '\n';
             }
+
+            tab.erase(tab.size() - 1, 1);
+            oss << tab << "]";
+            break;
+        case STRING:
+            oss << '"' << static_cast<JSONString*>(jsonPtr)->string << '"';
+            break;
+        case NUMBER:
+            oss << static_cast<JSONString*>(jsonPtr)->string;
+            break;
+        case BOOL:
+            oss << std::boolalpha << static_cast<bool>(std::atoi(static_cast<JSONString*>(jsonPtr)->string.c_str())) << std::noboolalpha;
+            break;
+        case NULLPTR:
+            oss << "null";
+            break;
+        default:
+            break;
         }
-        return 0;
     }
 
-    JSON* GetMainObject()
-    {
-        return object;
-    }
-
-private:
 	char GetNextSymbolWithoutSpace(const std::string& json)
     {
         for (currentPos; currentPos < json.size(); ++currentPos)
@@ -342,14 +480,14 @@ private:
         return 0;
     }
 
-	std::string GetStr(const std::string& json)
+	std::string GetString(const std::string& json)
     {
         std::string str;
         bool escapeSymbol = false;
         for (currentPos; currentPos < json.size(); ++currentPos)
         {
             if (json[currentPos] == '\\')
-                {
+            {
                 escapeSymbol = true;
                 continue;
             }
@@ -362,7 +500,7 @@ private:
         }
     }
 
-	std::string GetVal(const std::string& json)
+	std::pair<std::string, ValueType> GetNumber(const std::string& json)
     {
         std::string str;
         for (currentPos; currentPos < json.size(); ++currentPos)
@@ -377,19 +515,21 @@ private:
                 boolStr[3] = json[currentPos + 3];
 
                 if (boolStr == "true")
-                    return "1";
+                    return std::pair<std::string, ValueType>("1", BOOL);
                 else if (boolStr == "false")
-                    return "0";
+                    return std::pair<std::string, ValueType>("0", BOOL);
                 else if (boolStr == "null")
-                    return "0";
+                    return std::pair<std::string, ValueType>("0", NULLPTR);
             }
 
             if ((0x30 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x39) ||
                 static_cast<uint8_t>(json[currentPos]) == 0x2E || static_cast<uint8_t>(json[currentPos]) == 0x2D ||
                 static_cast<uint8_t>(json[currentPos]) == 0x45 || static_cast<uint8_t>(json[currentPos]) == 0x65)
                 str += json[currentPos];
+            else if (!str.empty())
+                return std::pair<std::string, ValueType>(str, NUMBER);
             else
-                return str;
+                return std::pair<std::string, ValueType>(str, NONE);
         }
     }
 

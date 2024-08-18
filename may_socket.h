@@ -38,7 +38,7 @@
 #include <string>
 #include <sstream>
 
-namespace may_socket
+namespace may
 {
 
 #ifdef WINDOWS
