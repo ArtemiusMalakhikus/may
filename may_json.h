@@ -739,29 +739,29 @@ private:
             if (currentPos + 3 < json.size())
             {
                 std::string boolStr;
-		boolStr.resize(4);
-		boolStr[0] = json[currentPos];
-		boolStr[1] = json[currentPos + 1];
-		boolStr[2] = json[currentPos + 2];
-		boolStr[3] = json[currentPos + 3];
-		if (boolStr == "null")
-     			return std::pair<std::string, ValueType>("0", NULLPTR);
+		        boolStr.resize(4);
+                boolStr[0] = json[currentPos];
+		        boolStr[1] = json[currentPos + 1];
+		        boolStr[2] = json[currentPos + 2];
+		        boolStr[3] = json[currentPos + 3];
+		        if (boolStr == "null")
+                    return std::pair<std::string, ValueType>("0", NULLPTR);
 		    
-		boolStr[0] = json[currentPos];
-		boolStr[1] = json[currentPos + 1];
-		boolStr[2] = json[currentPos + 2];
-		boolStr[3] = json[currentPos + 3];
-		if (boolStr == "true")
-     			return std::pair<std::string, ValueType>("1", BOOL);
+		        boolStr[0] = json[currentPos];
+		        boolStr[1] = json[currentPos + 1];
+		        boolStr[2] = json[currentPos + 2];
+                boolStr[3] = json[currentPos + 3];
+		        if (boolStr == "true")
+     			    return std::pair<std::string, ValueType>("1", BOOL);
 		    
-		boolStr.resize(5);
-		boolStr[0] = json[currentPos];
-		boolStr[1] = json[currentPos + 1];
-		boolStr[2] = json[currentPos + 2];
-		boolStr[3] = json[currentPos + 3];
-		boolStr[4] = json[currentPos + 4];
-		if (boolStr == "false")
-     			return std::pair<std::string, ValueType>("0", BOOL);
+		        boolStr.resize(5);
+		        boolStr[0] = json[currentPos];
+		        boolStr[1] = json[currentPos + 1];
+		        boolStr[2] = json[currentPos + 2];
+		        boolStr[3] = json[currentPos + 3];
+		        boolStr[4] = json[currentPos + 4];
+		        if (boolStr == "false")
+     			    return std::pair<std::string, ValueType>("0", BOOL);
             }
 
             if ((0x30 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x39) ||
