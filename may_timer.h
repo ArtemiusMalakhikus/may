@@ -217,19 +217,19 @@ public:
 	}
 
 	/*!
-	* \param [out] time Reference to get the time.
+	* \return time.
 	*/
-	void GetTime(float& time)
+	float GetTime()
 	{
 #ifndef CHRONO
 		QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
 
 		//вычисление времени в секундах, которое прошло с момента старта таймера
-		time = period * (currentCounter - baseCounter);
+		return period * (currentCounter - baseCounter);
 #else
 		currentNS = std::chrono::steady_clock::now();
 		std::chrono::steady_clock::time_point t = std::chrono::steady_clock::time_point(currentNS - previousNS);
-		time = std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count() * 0.000000001;
+		return std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count() * 0.000000001;
 #endif // !CHRONO
 	}
 
