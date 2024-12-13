@@ -28,6 +28,7 @@
 * File encoding support: UTF-8.
 */
 
+#include <string_view>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -734,49 +735,49 @@ private:
 	std::pair<std::string, ValueType> GetNumber(const std::string& json)
     {
         std::string str;
+        bool hexFlag = false;
         for (currentPos; currentPos < json.size(); ++currentPos)
         {
-            if (currentPos + 3 < json.size())
+            if (json.substr(currentPos, std::string_view{ "null" }.size()) == "null")
             {
-                std::string boolStr;
-		        boolStr.resize(4);
-                boolStr[0] = json[currentPos];
-		        boolStr[1] = json[currentPos + 1];
-		        boolStr[2] = json[currentPos + 2];
-		        boolStr[3] = json[currentPos + 3];
-		        if (boolStr == "null")
-                    return std::pair<std::string, ValueType>("0", NULLPTR);
-		    
-		        boolStr[0] = json[currentPos];
-		        boolStr[1] = json[currentPos + 1];
-		        boolStr[2] = json[currentPos + 2];
-                boolStr[3] = json[currentPos + 3];
-		        if (boolStr == "true")
-     			    return std::pair<std::string, ValueType>("1", BOOL);
-		    
-		        boolStr.resize(5);
-		        boolStr[0] = json[currentPos];
-		        boolStr[1] = json[currentPos + 1];
-		        boolStr[2] = json[currentPos + 2];
-		        boolStr[3] = json[currentPos + 3];
-		        boolStr[4] = json[currentPos + 4];
-		        if (boolStr == "false")
-     			    return std::pair<std::string, ValueType>("0", BOOL);
+                currentPos += (std::string_view{ "null" }.size() - 1);
+                return std::pair<std::string, ValueType>("0", NULLPTR);
+            }
+            else if (json.substr(currentPos, std::string_view{ "true" }.size()) == "true")
+            {
+                currentPos += (std::string_view{ "true" }.size() - 1);
+                return std::pair<std::string, ValueType>("1", BOOL);
+            }
+            else if (json.substr(currentPos, std::string_view{ "false" }.size()) == "false")
+            {
+                currentPos += (std::string_view{ "false" }.size() - 1);
+                return std::pair<std::string, ValueType>("0", BOOL);
+            }
+            else if (json.substr(currentPos, std::string_view{ "0x" }.size()) == "0x" || json.substr(currentPos, std::string_view{ "0X" }.size()) == "0X")
+            {
+                hexFlag = true;
             }
 
             if ((0x30 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x39) ||
                 static_cast<uint8_t>(json[currentPos]) == 0x2E || static_cast<uint8_t>(json[currentPos]) == 0x2D ||
-                static_cast<uint8_t>(json[currentPos]) == 0x45 || static_cast<uint8_t>(json[currentPos]) == 0x65)
+                static_cast<uint8_t>(json[currentPos]) == 0x45 || static_cast<uint8_t>(json[currentPos]) == 0x65 ||
+                static_cast<uint8_t>(json[currentPos]) == 0x58 || static_cast<uint8_t>(json[currentPos]) == 0x78 ||
+                (0x41 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x46) ||
+                (0x61 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x66))
                 str += json[currentPos];
             else if (!str.empty())
+            {
+                if (hexFlag)
+                    str = std::to_string(strtol(str.c_str(), nullptr, 16));
                 return std::pair<std::string, ValueType>(str, NUMBER);
+            }
             else
                 return std::pair<std::string, ValueType>(str, NONE);
         }
     }
 
-	uint32_t currentPos; //current positon symbol in JSON data
-	JSONValue* mainObject;   //main object JSON
+	uint32_t currentPos;   //current positon symbol in JSON data
+	JSONValue* mainObject; //main object JSON
 };
 
 }
