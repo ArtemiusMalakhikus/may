@@ -1,7 +1,4 @@
-﻿#ifndef AILERON_SOCKET_H
-#define AILERON_SOCKET_H
-
-/*
+﻿/*
 * The MIT License (MIT)
 *
 * Copyright (c) 2023 Malakhov Artyom
@@ -27,6 +24,9 @@
 * This is a single file library for encapsulation Berkeley sockets.
 * For "Windows", you need to link the Ws2_32.lib
 */
+
+#ifndef AILERON_SOCKET_H
+#define AILERON_SOCKET_H
 
 #ifdef WINDOWS
 #include <WinSock2.h>

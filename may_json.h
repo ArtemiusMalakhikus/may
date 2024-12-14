@@ -1,9 +1,6 @@
-﻿#ifndef MAY_JSON_H
-#define MAY_JSON_H
-
-/*
+﻿/*
 * The MIT License (MIT)
-* 
+*
 * Copyright (c) 2023 Malakhov Artyom
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy of this softwareand
@@ -27,6 +24,9 @@
 * This is a single file library for reading JSON files.
 * File encoding support: UTF-8.
 */
+
+#ifndef MAY_JSON_H
+#define MAY_JSON_H
 
 #include <string_view>
 #include <fstream>
@@ -520,11 +520,9 @@ private:
                 {
                     ++currentPos;
                     str = GetString(json);
-
                     *newPtr = new JSONText;
                     reinterpret_cast<JSONText*>(*newPtr)->string = str;
                     (*newPtr)->type = STRING;
-
                     (*newPtr)->previousPtr = currentObjectPtr;
                     valueFlag = false;
                     break;
@@ -532,11 +530,9 @@ private:
                 default:
                 {
                     std::pair<std::string, ValueType> p = GetNumber(json);
-
                     *newPtr = new JSONText;
                     reinterpret_cast<JSONText*>(*newPtr)->string = p.first;
                     (*newPtr)->type = p.second;
-
                     (*newPtr)->previousPtr = currentObjectPtr;
                     valueFlag = false;
                     break;
@@ -560,10 +556,8 @@ private:
                 {
                     JSONObject* newObject = new JSONObject;
                     newObject->previousPtr = currentObjectPtr;
-
-                    JSONArray* tempPtr = reinterpret_cast<JSONArray*>(currentObjectPtr);
-                    tempPtr->array.push_back(newObject);
-
+                    JSONArray* arrayPtr = reinterpret_cast<JSONArray*>(currentObjectPtr);
+                    arrayPtr->array.push_back(newObject);
                     currentObjectPtr = newObject;
                 }
                 break;
@@ -572,24 +566,22 @@ private:
             {
                 ++currentPos;
                 str = GetString(json);
-
-                JSONArray* tempPtr = dynamic_cast<JSONArray*>(currentObjectPtr);
-                if (tempPtr)
+                JSONArray* arrayPtr = dynamic_cast<JSONArray*>(currentObjectPtr);
+                if (arrayPtr)
                 {
                     JSONText* value = new JSONText;
                     value->string = str;
-                    value->previousPtr = tempPtr;
-
-                    tempPtr->array.push_back(value);
+                    value->type = STRING;
+                    value->previousPtr = arrayPtr;
+                    arrayPtr->array.push_back(value);
                 }
                 break;
             }
             case ':':
             {
-                JSONObject* tempPtr = reinterpret_cast<JSONObject*>(currentObjectPtr);
-                tempPtr->pairs.push_back(std::pair<std::string, JSONValue*>(str, 0));
-
-                newPtr = &tempPtr->pairs.back().second;
+                JSONObject* objectPtr = reinterpret_cast<JSONObject*>(currentObjectPtr);
+                objectPtr->pairs.push_back(std::pair<std::string, JSONValue*>(str, 0));
+                newPtr = &objectPtr->pairs.back().second;
                 valueFlag = true;
                 break;
             }
@@ -619,17 +611,15 @@ private:
                 break;
             default:
             {
-                JSONArray* tempPtr = dynamic_cast<JSONArray*>(currentObjectPtr);
-                if (tempPtr)
+                JSONArray* arrayPtr = dynamic_cast<JSONArray*>(currentObjectPtr);
+                if (arrayPtr)
                 {
                     std::pair<std::string, ValueType> p = GetNumber(json);
-
                     JSONText* value = new JSONText;
                     value->string = p.first;
                     value->type = p.second;
-                    value->previousPtr = tempPtr;
-
-                    tempPtr->array.push_back(value);
+                    value->previousPtr = arrayPtr;
+                    arrayPtr->array.push_back(value);
                 }
                 break;
             }
