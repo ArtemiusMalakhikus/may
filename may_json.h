@@ -364,9 +364,7 @@ public:
     {
         std::ifstream file(fileName, std::ios::in | std::ios::binary);
         if (!file)
-        {
             return true;
-        }
 
         //file size determination
         file.seekg(0, std::ios::end);
@@ -380,7 +378,8 @@ public:
         file.close();
 
         currentPos = 0;
-        Parsing(json);
+        if (Parsing(json))
+            return true;
         return false;
     }
 
@@ -392,7 +391,8 @@ public:
     bool Read(std::string& json, uint32_t pos)
     {
         currentPos = pos;
-        Parsing(json);
+        if (Parsing(json))
+            return true;
         return false;
     }
 
@@ -530,6 +530,8 @@ private:
                 default:
                 {
                     std::pair<std::string, ValueType> p = GetNumber(json);
+                    if (p.second == NONE)
+                        return true;
                     *newPtr = new JSONText;
                     reinterpret_cast<JSONText*>(*newPtr)->string = p.first;
                     (*newPtr)->type = p.second;
@@ -615,6 +617,8 @@ private:
                 if (arrayPtr)
                 {
                     std::pair<std::string, ValueType> p = GetNumber(json);
+                    if (p.second == NONE)
+                        return true;
                     JSONText* value = new JSONText;
                     value->string = p.first;
                     value->type = p.second;
@@ -725,7 +729,6 @@ private:
 	std::pair<std::string, ValueType> GetNumber(const std::string& json)
     {
         std::string str;
-        bool hexFlag = false;
         for (currentPos; currentPos < json.size(); ++currentPos)
         {
             if (json.substr(currentPos, std::string_view{ "null" }.size()) == "null")
@@ -743,24 +746,13 @@ private:
                 currentPos += (std::string_view{ "false" }.size() - 1);
                 return std::pair<std::string, ValueType>("0", BOOL);
             }
-            else if (json.substr(currentPos, std::string_view{ "0x" }.size()) == "0x" || json.substr(currentPos, std::string_view{ "0X" }.size()) == "0X")
-            {
-                hexFlag = true;
-            }
 
             if ((0x30 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x39) ||
                 static_cast<uint8_t>(json[currentPos]) == 0x2E || static_cast<uint8_t>(json[currentPos]) == 0x2D ||
-                static_cast<uint8_t>(json[currentPos]) == 0x45 || static_cast<uint8_t>(json[currentPos]) == 0x65 ||
-                static_cast<uint8_t>(json[currentPos]) == 0x58 || static_cast<uint8_t>(json[currentPos]) == 0x78 ||
-                (0x41 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x46) ||
-                (0x61 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x66))
+                static_cast<uint8_t>(json[currentPos]) == 0x45 || static_cast<uint8_t>(json[currentPos]) == 0x65)
                 str += json[currentPos];
             else if (!str.empty())
-            {
-                if (hexFlag)
-                    str = std::to_string(strtol(str.c_str(), nullptr, 16));
                 return std::pair<std::string, ValueType>(str, NUMBER);
-            }
             else
                 return std::pair<std::string, ValueType>(str, NONE);
         }
