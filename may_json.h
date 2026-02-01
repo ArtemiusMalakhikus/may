@@ -731,6 +731,23 @@ private:
         std::string str;
         for (currentPos; currentPos < json.size(); ++currentPos)
         {
+#ifdef OLDCPP
+            if (json.substr(currentPos, strlen("null")) == "null")
+            {
+                currentPos += (strlen("null") - 1);
+                return std::pair<std::string, ValueType>("0", NULLPTR);
+            }
+            else if (json.substr(currentPos, strlen("true")) == "true")
+            {
+                currentPos += (strlen("true") - 1);
+                return std::pair<std::string, ValueType>("1", BOOL);
+            }
+            else if (json.substr(currentPos, strlen("false")) == "false")
+            {
+                currentPos += (strlen("false") - 1);
+                return std::pair<std::string, ValueType>("0", BOOL);
+            }
+#else
             if (json.substr(currentPos, std::string_view{ "null" }.size()) == "null")
             {
                 currentPos += (std::string_view{ "null" }.size() - 1);
@@ -746,6 +763,7 @@ private:
                 currentPos += (std::string_view{ "false" }.size() - 1);
                 return std::pair<std::string, ValueType>("0", BOOL);
             }
+#endif // OLDCPP
 
             if ((0x30 <= static_cast<uint8_t>(json[currentPos]) && static_cast<uint8_t>(json[currentPos]) <= 0x39) ||
                 static_cast<uint8_t>(json[currentPos]) == 0x2E || static_cast<uint8_t>(json[currentPos]) == 0x2D ||

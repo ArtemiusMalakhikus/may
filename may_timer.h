@@ -52,7 +52,7 @@ public:
 		currentCounter = 0;
 		previousCounter = 0;
 #else
-		ns = static_cast<std::chrono::nanoseconds>(static_cast<long long>(second * 1000000000));
+		ns = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::duration<double, std::ratio<1>>(second));
 #endif // !CHRONO
 	}
 
@@ -83,7 +83,7 @@ public:
 
 		timerCounter = second * frequency;
 #else
-		ns = static_cast<std::chrono::nanoseconds>(static_cast<long long>(second * 1000000000));
+		ns = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::duration<double, std::ratio<1>>(second));
 #endif // !CHRONO
 	}
 
@@ -131,10 +131,10 @@ public:
 	}
 
 	/*!
-	* \param [out] time Reference to get the time.
+	* \param [out] time Reference to get the time in second.
 	* \return true - timer ready, else - false.
 	*/
-	bool CheckWithUpdate(float& time)
+	bool CheckWithUpdate(double& time)
 	{
 #ifndef CHRONO
 		QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
@@ -150,11 +150,10 @@ public:
 		return false;
 #else
 		currentNS = std::chrono::steady_clock::now();
+		std::chrono::nanoseconds difference = currentNS - previousNS;
+		time = std::chrono::duration<double, std::ratio<1>>(difference).count();
 
-		std::chrono::steady_clock::time_point t = std::chrono::steady_clock::time_point(currentNS - previousNS);
-		time = std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count() * 0.000000001;
-
-		if (t.time_since_epoch() >= ns)
+		if (difference >= ns)
 		{
 			previousNS = currentNS;
 			return true;
@@ -180,18 +179,17 @@ public:
 		currentNS = std::chrono::steady_clock::now();
 
 		if (currentNS - previousNS >= ns)
-		{
 			return true;
-		}
+
 		return false;
 #endif // !CHRONO
 	}
 
 	/*!
-	* \param [out] time Reference to get the time.
+	* \param [out] time Reference to get the time in sec.
 	* \return true - timer ready, else - false.
 	*/
-	bool CheckWithoutUpdate(float& time)
+	bool CheckWithoutUpdate(double& time)
 	{
 #ifndef CHRONO
 		QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
@@ -205,11 +203,10 @@ public:
 		return false;
 #else
 		currentNS = std::chrono::steady_clock::now();
+		std::chrono::nanoseconds difference = currentNS - previousNS;
+		time = std::chrono::duration<double, std::ratio<1>>(difference).count();
 
-		std::chrono::steady_clock::time_point t = std::chrono::steady_clock::time_point(currentNS - previousNS);
-		time = std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count() * 0.000000001;
-
-		if (t.time_since_epoch() >= ns)
+		if (difference >= ns)
 			return true;
 
 		return false;
@@ -217,9 +214,9 @@ public:
 	}
 
 	/*!
-	* \return time.
+	* \return time in second.
 	*/
-	float GetTime()
+	double GetTime()
 	{
 #ifndef CHRONO
 		QueryPerformanceCounter((LARGE_INTEGER*)&currentCounter);
@@ -227,9 +224,7 @@ public:
 		//вычисление времени в секундах, которое прошло с момента старта таймера
 		return period * (currentCounter - baseCounter);
 #else
-		currentNS = std::chrono::steady_clock::now();
-		std::chrono::steady_clock::time_point t = std::chrono::steady_clock::time_point(currentNS - previousNS);
-		return std::chrono::duration_cast<std::chrono::nanoseconds>(t.time_since_epoch()).count() * 0.000000001;
+		return std::chrono::duration<double, std::ratio<1>>(std::chrono::steady_clock::now() - baseNS).count();
 #endif // !CHRONO
 	}
 
