@@ -22,7 +22,6 @@
 
 /*
 * This is a single file library for encapsulation Berkeley sockets.
-* For "Windows", you need to link the Ws2_32.lib
 */
 
 #ifndef AILERON_SOCKET_H
@@ -34,10 +33,7 @@
 #pragma comment(lib, "Ws2_32.lib")
 #define GET_LAST_ERROR WSAGetLastError()
 #define SOCKET_WOULDBLOCK WSAEWOULDBLOCK
-typedef SOCKET SocketID;
-typedef int SocketLength;
-int (*CloseSocket)(SocketID) = closesocket;
-#elif defined LINUX
+#elif defined UNIX
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -46,9 +42,6 @@ int (*CloseSocket)(SocketID) = closesocket;
 #include <errno.h>
 #define GET_LAST_ERROR errno
 #define SOCKET_WOULDBLOCK EAGAIN
-typedef int SocketID;
-typedef socklen_t SocketLength;
-int (*CloseSocket)(SocketID) = close;
 #endif
 
 #include <algorithm>
@@ -60,6 +53,16 @@ int (*CloseSocket)(SocketID) = close;
 
 namespace may
 {
+
+#if defined WINDOWS
+	typedef SOCKET SocketID;
+	typedef int AddressLength;
+	int (*CloseSocket)(may::SocketID) = closesocket;
+#elif defined UNIX
+	typedef int SocketID;
+	typedef socklen_t AddressLength;
+	int (*CloseSocket)(may::SocketID) = close;
+#endif
 
 /*!
 * \brief Mandatory call before use.
@@ -99,7 +102,7 @@ struct AddressInfo
 	sockaddr addr;  //binary address
 };
 
-int GetAddressInfo(std::string& domianName, std::string& portName, const addrinfo* hint, std::vector<AddressInfo>& addressInfos)
+int GetAddressInfo(const std::string& domianName, const std::string& portName, const addrinfo* hint, std::vector<may::AddressInfo>& addressInfos)
 {
 	addrinfo* addrinfoResult = nullptr;
 	int result = getaddrinfo(domianName.c_str(), portName.c_str(), hint, &addrinfoResult);
@@ -115,151 +118,215 @@ int GetAddressInfo(std::string& domianName, std::string& portName, const addrinf
 	return result;
 }
 
+class SocketAddress;
+typedef uint16_t EqualPort;
+typedef uint32_t EqualAddress;
+
 class SocketAddress
 {
 public:
 	SocketAddress()
 	{
-		size = sizeof(sockaddr);
+		size = sizeof(sockaddr_in);
+		memset(&address, 0, size);
 	}
 
-	SocketAddress(const sockaddr& _address)
+	SocketAddress(const may::AddressFamily& family)
 	{
-		size = sizeof(sockaddr);
+		if (family == may::AddressFamily::IPV4)
+		{
+			size = sizeof(sockaddr_in);
+			memset(&address, 0, size);
+		}
+		else if (family == may::AddressFamily::IPV6)
+		{
+			size = sizeof(sockaddr_in6);
+			memset(&address, 0, size);
+		}
+	}
+
+	SocketAddress(const sockaddr_storage& _address, const may::AddressLength& _size)
+	{
+		size = _size;
 		address = _address;
 	}
 
-	SocketAddress(const std::string& socketAddressStr)
+	SocketAddress(const sockaddr& _address, const may::AddressLength& _size)
 	{
-		size = sizeof(sockaddr);
-		InitSocketAddressIPv4(socketAddressStr);
+		size = _size;
+		memcpy(&address, &_address, size);
+	}
+
+	SocketAddress(const sockaddr_in& ipv4)
+	{
+		size = sizeof(sockaddr_in);
+		memcpy(&address, &ipv4, size);
+	}
+
+	SocketAddress(const sockaddr_in6& ipv6)
+	{
+		size = sizeof(sockaddr_in6);
+		memcpy(&address, &ipv6, size);
 	}
 
 	/*!
-	* \brief Socket address initialization.
-	* \param [in] socketAddressStr Socket address in the string. Format: "00.00.00.00:00"
+	* \param [in] socketAddressStr Socket address in the string.
+	* Format: ipv4 - 000.000.000.000:00000 (dec:dec) or ipv6 - [FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF]:00000 ([hex]:dec)
 	*/
-	void InitSocketAddressIPv4(const std::string& socketAddressStr)
+	SocketAddress(const std::string& socketAddressStr)
 	{
-		std::string addrStr1;
-		std::string addrStr2;
-		std::string addrStr3;
-		std::string addrStr4;
-		std::string portStr;
-
-		unsigned int pos = socketAddressStr.find("localhost");
-		if (pos != -1)
+		if (socketAddressStr.find("localhost") != -1)
 		{
-			addrStr1 = "127";
-			addrStr2 = "0";
-			addrStr3 = "0";
-			addrStr4 = "1";
-
-			pos = socketAddressStr.find(":");
+			std::string portStr("80");
+			auto pos = socketAddressStr.find(":");
 			if (pos != -1)
 			{
 				++pos;
 				portStr = socketAddressStr.substr(pos, socketAddressStr.size() - pos);
 			}
-			else
-			{
-				portStr = "80";
-			}
+
+			std::array<uint8_t, 4> addr{
+				std::stoi("127"),
+				std::stoi("0"),
+				std::stoi("0"),
+				std::stoi("1")
+			};
+
+			uint16_t port = htons(std::stoi(portStr));
+
+			sockaddr_in ipv4{};
+			memset(&ipv4, 0, sizeof(sockaddr_in));
+			ipv4.sin_family = static_cast<uint16_t>(may::AddressFamily::IPV4);
+			ipv4.sin_port = port;
+			memcpy(&ipv4.sin_addr, addr.data(), addr.size() * sizeof(uint8_t));
+
+			size = sizeof(sockaddr_in);
+			memcpy(&address, &ipv4, size);
 		}
 		else
 		{
-			unsigned int i = 0;
-
-			for (; i < socketAddressStr.size(); ++i)
+			if (socketAddressStr[0] == '[')
 			{
-				if (socketAddressStr[i] != '.')
-				{
-					addrStr1 += socketAddressStr[i];
-				}
-				else
-				{
-					++i;
-					break;
-				}
+				std::array<uint16_t, 8> addr;
+
+				auto pos1 = socketAddressStr.find_first_of(':');
+				addr[0] = htons(std::stoi(socketAddressStr.substr(1, pos1 - 1), nullptr, 16));
+				++pos1;
+
+				auto pos2 = socketAddressStr.find_first_of(':', pos1);
+				addr[1] = htons(std::stoi(socketAddressStr.substr(pos1, pos2 - pos1), nullptr, 16));
+				++pos2;
+
+				auto pos3 = socketAddressStr.find_first_of(':', pos2);
+				addr[2] = htons(std::stoi(socketAddressStr.substr(pos2, pos3 - pos2), nullptr, 16));
+				++pos3;
+
+				auto pos4 = socketAddressStr.find_first_of(':', pos3);
+				addr[3] = htons(std::stoi(socketAddressStr.substr(pos3, pos4 - pos3), nullptr, 16));
+				++pos4;
+
+				auto pos5 = socketAddressStr.find_first_of(':', pos4);
+				addr[4] = htons(std::stoi(socketAddressStr.substr(pos4, pos5 - pos4), nullptr, 16));
+				++pos5;
+
+				auto pos6 = socketAddressStr.find_first_of(':', pos5);
+				addr[5] = htons(std::stoi(socketAddressStr.substr(pos5, pos6 - pos5), nullptr, 16));
+				++pos6;
+
+				auto pos7 = socketAddressStr.find_first_of(':', pos6);
+				addr[6] = htons(std::stoi(socketAddressStr.substr(pos6, pos7 - pos6), nullptr, 16));
+				++pos7;
+
+				auto pos8 = socketAddressStr.find_first_of(']', pos7);
+				addr[7] = htons(std::stoi(socketAddressStr.substr(pos7, pos8 - pos7), nullptr, 16));
+				pos8 += 2;
+
+				uint16_t port = htons(std::stoi(socketAddressStr.substr(pos8, socketAddressStr.size() - pos8)));
+
+				sockaddr_in6 ipv6{};
+				memset(&ipv6, 0, sizeof(sockaddr_in6));
+				ipv6.sin6_family = static_cast<uint16_t>(may::AddressFamily::IPV6);
+				ipv6.sin6_port = port;
+				memcpy(&ipv6.sin6_addr, addr.data(), addr.size() * sizeof(uint16_t));
+
+				size = sizeof(sockaddr_in6);
+				memcpy(&address, &ipv6, size);
 			}
-
-			for (; i < socketAddressStr.size(); ++i)
+			else
 			{
-				if (socketAddressStr[i] != '.')
-				{
-					addrStr2 += socketAddressStr[i];
-				}
-				else
-				{
-					++i;
-					break;
-				}
-			}
+				std::array<uint8_t, 4> addr;
 
-			for (; i < socketAddressStr.size(); ++i)
-			{
-				if (socketAddressStr[i] != '.')
-				{
-					addrStr3 += socketAddressStr[i];
-				}
-				else
-				{
-					++i;
-					break;
-				}
-			}
+				auto pos1 = socketAddressStr.find_first_of('.');
+				addr[0] = std::stoi(socketAddressStr.substr(0, pos1));
+				++pos1;
 
-			for (; i < socketAddressStr.size(); ++i)
-			{
-				if (socketAddressStr[i] != ':')
-				{
-					addrStr4 += socketAddressStr[i];
-				}
-				else
-				{
-					++i;
-					break;
-				}
-			}
+				auto pos2 = socketAddressStr.find_first_of('.', pos1);
+				addr[1] = std::stoi(socketAddressStr.substr(pos1, pos2 - pos1));
+				++pos2;
 
-			for (; i < socketAddressStr.size(); ++i)
-			{
-				portStr += socketAddressStr[i];
+				auto pos3 = socketAddressStr.find_first_of('.', pos2);
+				addr[2] = std::stoi(socketAddressStr.substr(pos2, pos3 - pos2));
+				++pos3;
+
+				auto pos4 = socketAddressStr.find_first_of(':', pos3);
+				addr[3] = std::stoi(socketAddressStr.substr(pos3, pos4 - pos3));
+				++pos4;
+
+				uint16_t port = htons(std::stoi(socketAddressStr.substr(pos4, socketAddressStr.size() - pos4)));
+
+				sockaddr_in ipv4{};
+				memset(&ipv4, 0, sizeof(sockaddr_in));
+				ipv4.sin_family = static_cast<uint16_t>(may::AddressFamily::IPV4);
+				ipv4.sin_port = port;
+				memcpy(&ipv4.sin_addr, addr.data(), addr.size() * sizeof(uint8_t));
+
+				size = sizeof(sockaddr_in);
+				memcpy(&address, &ipv4, size);
 			}
 		}
-
-		unsigned char addr1 = atoi(addrStr1.c_str());
-		unsigned char addr2 = atoi(addrStr2.c_str());
-		unsigned char addr3 = atoi(addrStr3.c_str());
-		unsigned char addr4 = atoi(addrStr4.c_str());
-		unsigned short int port = htons(atoi(portStr.c_str()));
-
-		reinterpret_cast<sockaddr_in*>(&address)->sin_family = AF_INET;
-		reinterpret_cast<sockaddr_in*>(&address)->sin_port = port;
-
-#if defined WINDOWS
-		reinterpret_cast<sockaddr_in*>(&address)->sin_addr.S_un.S_addr = addr1 | (addr2 << 8) | (addr3 << 16) | (addr4 << 24);
-#elif defined LINUX
-		reinterpret_cast<sockaddr_in*>(&address)->sin_addr.s_addr = addr1 | (addr2 << 8) | (addr3 << 16) | (addr4 << 24);
-#endif
 	}
 
-	bool operator==(SocketAddress& a)
+	bool operator==(const SocketAddress& _address)
 	{
-#if defined WINDOWS
-		return reinterpret_cast<sockaddr_in*>(&address)->sin_addr.S_un.S_addr == reinterpret_cast<sockaddr_in*>(&a)->sin_addr.S_un.S_addr;
-#elif defined LINUX
-		return reinterpret_cast<sockaddr_in*>(&address)->sin_addr.s_addr == reinterpret_cast<sockaddr_in*>(&a)->sin_addr.s_addr;
-#endif
+		if (size == _address.size)
+			return memcmp(&address, &_address.address, size) == 0;
+		return false;
 	}
 
-	bool operator!=(SocketAddress& a)
+	bool operator!=(const SocketAddress& _address)
 	{
-		return !(*this == a);
+		return !(*this == _address);
 	}
 
-	sockaddr address;
-	SocketLength size;
+	bool operator==(const may::EqualAddress* _address)
+	{
+		const sockaddr_storage* addr = reinterpret_cast<const sockaddr_storage*>(_address);
+
+		if (address.ss_family == static_cast<uint16_t>(may::AddressFamily::IPV4))
+			return memcmp((reinterpret_cast<uint8_t*>(&address) + 4), (reinterpret_cast<const uint8_t*>(addr) + 4), 4) == 0;
+		else if (address.ss_family == static_cast<uint16_t>(may::AddressFamily::IPV6))
+			return memcmp((reinterpret_cast<uint8_t*>(&address) + 8), (reinterpret_cast<const uint8_t*>(addr) + 8), 16) == 0;
+		return false;
+	}
+
+	bool operator!=(const may::EqualAddress* _address)
+	{
+		return !(*this == _address);
+	}
+
+	bool operator==(const may::EqualPort* _address)
+	{
+		const sockaddr_storage* addr = reinterpret_cast<const sockaddr_storage*>(_address);
+		return memcmp((reinterpret_cast<uint8_t*>(&address) + 2), (reinterpret_cast<const uint8_t*>(addr) + 2), 2) == 0;
+	}
+
+	bool operator!=(const may::EqualPort* _address)
+	{
+		return !(*this == _address);
+	}
+
+	sockaddr_storage address;
+	may::AddressLength size;
 };
 
 #ifdef UDP_SOCKET
@@ -274,9 +341,9 @@ public:
 		nonBlockingMode = false;
 	}
 
-	void CreateSocket(AddressFamily af)
+	void CreateSocket(const may::AddressFamily& family)
 	{
-		socketID = socket(af, SOCK_DGRAM, 0);
+		socketID = socket(static_cast<int>(family), SOCK_DGRAM, 0);
 		error = 0;
 
 		if (socketID == -1)
@@ -292,7 +359,7 @@ public:
 	{
 		if (socketID != -1)
 		{
-			result = CloseSocket(socketID);
+			result = may::CloseSocket(socketID);
 			error = 0;
 			socketID = -1;
 
@@ -323,9 +390,9 @@ public:
 	/*!
 	* \brief Bind socket to address
 	*/
-	void Bind(SocketAddress& address)
+	void Bind(const may::SocketAddress& address)
 	{
-		result = bind(socketID, &address.address, address.size);
+		result = bind(socketID, reinterpret_cast<const sockaddr*>(&address.address), address.size);
 		error = 0;
 
 		if (result == -1)
@@ -342,7 +409,7 @@ public:
 #if defined WINDOWS
 		unsigned long arg = 1;
 		result = ioctlsocket(socketID, FIONBIO, &arg);
-#elif defined LINUX
+#elif defined UNIX
 		result = fcntl(socketID, F_GETFL, 0);
 		if (result != -1)
 			result = fcntl(socketID, F_SETFL, result | O_NONBLOCK);
@@ -365,9 +432,9 @@ public:
 	* \param [in] size Data size in bytes.
 	* \param [in] address Link to the recipient's address.
 	*/
-	void SendTo(char* buffer, const int& size, SocketAddress& address)
+	void SendTo(char* buffer, const int& size, may::SocketAddress& address)
 	{
-		result = sendto(socketID, buffer, size, 0, &address.address, address.size);
+		result = sendto(socketID, buffer, size, 0, reinterpret_cast<const sockaddr*>(&address.address), address.size);
 		error = 0;
 
 		if (result == -1)
@@ -379,19 +446,19 @@ public:
 	* \param [out] size Data size in bytes.
 	* \param [out] address Link to the sender's address.
 	*/
-	void ReceiveFrom(char* buffer, int size, SocketAddress& address)
+	void ReceiveFrom(char* buffer, int size, may::SocketAddress& address)
 	{
-		result = recvfrom(socketID, buffer, size, 0, &address.address, &address.size);
+		result = recvfrom(socketID, buffer, size, 0, reinterpret_cast<sockaddr*>(&address.address), &address.size);
 		error = 0;
 
 		if (result == -1)
 			error = GET_LAST_ERROR;
 	}
 
-	SocketID socketID;
-	std::string errorStr; //error
-	int result;           //last result
-	int error;            //last error
+	may::SocketID socketID;
+	std::string errorStr;
+	int result;
+	int error;
 	bool nonBlockingMode;
 };
 #endif // UDP_SOCKET
@@ -408,9 +475,9 @@ public:
 		nonBlockingMode = false;
 	}
 
-	void CreateSocket(AddressFamily af)
+	void CreateSocket(const may::AddressFamily& family)
 	{
-		socketID = socket(static_cast<int>(af), SOCK_STREAM, 0);
+		socketID = socket(static_cast<int>(family), SOCK_STREAM, 0);
 		error = 0;
 
 		if (socketID == -1)
@@ -426,7 +493,7 @@ public:
 	{
 		if (socketID != -1)
 		{
-			result = CloseSocket(socketID);
+			result = may::CloseSocket(socketID);
 			error = 0;
 			socketID = -1;
 
@@ -443,9 +510,9 @@ public:
 	/*!
 	* \brief Bind socket to address
 	*/
-	void Bind(SocketAddress& address)
+	void Bind(const may::SocketAddress& address)
 	{
-		result = bind(socketID, &address.address, address.size);
+		result = bind(socketID, reinterpret_cast<const sockaddr*>(&address.address), address.size);
 		error = 0;
 
 		if (result == -1)
@@ -462,7 +529,7 @@ public:
 #if defined WINDOWS
 		unsigned long arg = 1;
 		result = ioctlsocket(socketID, FIONBIO, &arg);
-#elif defined LINUX
+#elif defined UNIX
 		result = fcntl(socketID, F_GETFL, 0);
 		if (result != -1)
 			result = fcntl(socketID, F_SETFL, result | O_NONBLOCK);
@@ -501,18 +568,18 @@ public:
 	* \brief Permits an incoming connection attempt on a socket.
 	* \param [in] address Link for the incoming connection address.
 	*/
-	SocketID Accept(SocketAddress& address)
+	may::SocketID Accept(may::SocketAddress& address)
 	{
-		return accept(socketID, &address.address, &address.size);
+		return accept(socketID, reinterpret_cast<sockaddr*>(&address.address), &address.size);
 	}
 
 	/*!
 	* \brief Establishes a connection.
 	* \param [in] address Link to the connection address.
 	*/
-	void Connect(const SocketAddress& address)
+	void Connect(const may::SocketAddress& address)
 	{
-		result = connect(socketID, &address.address, address.size);
+		result = connect(socketID, reinterpret_cast<const sockaddr*>(&address.address), address.size);
 		error = 0;
 
 		if (result == -1)
@@ -522,7 +589,7 @@ public:
 #if defined WINDOWS
 			if (error == SOCKET_WOULDBLOCK && nonBlockingMode)
 				result = 0;
-#elif defined LINUX
+#elif defined UNIX
 			if (error == EINPROGRESS && nonBlockingMode)
 				result = 0;
 #endif
@@ -555,10 +622,10 @@ public:
 			error = GET_LAST_ERROR;
 	}
 
-	SocketID socketID;
-	std::string errorStr; //error
-	int result;           //last result
-	int error;            //last error
+	may::SocketID socketID;
+	std::string errorStr;
+	int result;
+	int error;
 	bool nonBlockingMode;
 };
 #endif // TCP_SOCKET
