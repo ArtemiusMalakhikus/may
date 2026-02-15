@@ -294,6 +294,11 @@ public:
 			return std::string_view{ (reinterpret_cast<char*>(&address) + 8), 16 };
 	}
 
+	uint16_t GetPort()
+	{
+		return *(reinterpret_cast<uint16_t*>(&address) + 1);
+	}
+
 	bool operator==(const SocketAddress& _address)
 	{
 		if (size == _address.size)
