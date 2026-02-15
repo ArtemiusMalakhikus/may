@@ -120,7 +120,7 @@ int GetAddressInfo(const std::string& domianName, const std::string& portName, c
 
 class SocketAddress;
 typedef uint16_t EqualPort;
-typedef uint32_t EqualAddress;
+typedef uint32_t EqualIP;
 
 class SocketAddress
 {
@@ -286,6 +286,14 @@ public:
 		}
 	}
 
+	std::string_view GetIP()
+	{
+		if (address.ss_family == static_cast<uint16_t>(may::AddressFamily::IPV4))
+			return std::string_view{ (reinterpret_cast<char*>(&address) + 4), 4 };
+		else if (address.ss_family == static_cast<uint16_t>(may::AddressFamily::IPV6))
+			return std::string_view{ (reinterpret_cast<char*>(&address) + 8), 16 };
+	}
+
 	bool operator==(const SocketAddress& _address)
 	{
 		if (size == _address.size)
@@ -298,7 +306,7 @@ public:
 		return !(*this == _address);
 	}
 
-	bool operator==(const may::EqualAddress* _address)
+	bool operator==(const may::EqualIP* _address)
 	{
 		const sockaddr_storage* addr = reinterpret_cast<const sockaddr_storage*>(_address);
 
@@ -309,7 +317,7 @@ public:
 		return false;
 	}
 
-	bool operator!=(const may::EqualAddress* _address)
+	bool operator!=(const may::EqualIP* _address)
 	{
 		return !(*this == _address);
 	}
