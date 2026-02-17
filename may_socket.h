@@ -286,12 +286,12 @@ public:
 		}
 	}
 
-	std::string_view GetIP()
+	std::string_view GetIP() const
 	{
 		if (address.ss_family == static_cast<uint16_t>(may::AddressFamily::IPV4))
-			return std::string_view{ (reinterpret_cast<char*>(&address) + 4), 4 };
+			return std::string_view{ (reinterpret_cast<const char*>(&address) + 4), 4 };
 		else if (address.ss_family == static_cast<uint16_t>(may::AddressFamily::IPV6))
-			return std::string_view{ (reinterpret_cast<char*>(&address) + 8), 16 };
+			return std::string_view{ (reinterpret_cast<const char*>(&address) + 8), 16 };
 	}
 
 	uint16_t GetPort()
