@@ -40,8 +40,8 @@ MAY_CONSTEXPR double pi = 3.14159265358979323846264338327950288;
 MAY_CONSTEXPR double precision = 0.000001;
 MAY_CONSTEXPR double ln2 = 0.6931471805599453;
 
-template<typename mayType>
-MAY_CONSTEXPR mayType abs(mayType absolute)
+template<typename T>
+MAY_CONSTEXPR T abs(T absolute)
 {
 	return absolute * ((absolute > 0) - (absolute < 0));
 }
@@ -51,64 +51,74 @@ MAY_CONSTEXPR uint64_t factorial(uint64_t n)
 	return n == 0 ? 1 : n * may::factorial(n - 1);
 }
 
-template<typename mayType>
-MAY_CONSTEXPR mayType pow(mayType base, int32_t exp)
+template<typename T>
+MAY_CONSTEXPR T pow(T base, int32_t exp)
 {
 	return exp == 0 ? 1 : base * may::pow(base, exp - 1);
 }
 
-template<typename mayType>
-MAY_CONSTEXPR mayType sin_series(mayType rad, int32_t n)
+template<typename T>
+MAY_CONSTEXPR T sin_series(T rad, int32_t n)
 {
-	mayType number = may::pow(-1, n) * (may::pow(rad, 2 * n + 1) / may::factorial(2 * n + 1));
-	return may::abs(number) < static_cast<mayType>(precision) ? number : number + may::sin_series(rad, n + 1);
+	T number = may::pow(-1, n) * (may::pow(rad, 2 * n + 1) / may::factorial(2 * n + 1));
+	return may::abs(number) < static_cast<T>(precision) ? number : number + may::sin_series(rad, n + 1);
 }
 
-template<typename mayType>
-MAY_CONSTEXPR mayType cos_series(mayType rad, int32_t n)
+template<typename T>
+MAY_CONSTEXPR T cos_series(T rad, int32_t n)
 {
-	mayType number = may::pow(-1, n) * (may::pow(rad, 2 * n) / may::factorial(2 * n));
-	return may::abs(number) < static_cast<mayType>(precision) ? number : number + may::cos_series(rad, n + 1);
+	T number = may::pow(-1, n) * (may::pow(rad, 2 * n) / may::factorial(2 * n));
+	return may::abs(number) < static_cast<T>(precision) ? number : number + may::cos_series(rad, n + 1);
 }
 
-template<typename mayType>
-MAY_CONSTEXPR mayType sin(mayType rad)
+template<typename T>
+MAY_CONSTEXPR T sin(T rad)
 {
-	return may::sin_series(rad > static_cast<mayType>(pi) ? -((static_cast<mayType>(pi) * 2) - rad) : rad, 0);
+	return may::sin_series(rad > static_cast<T>(pi) ? -((static_cast<T>(pi) * 2) - rad) : rad, 0);
 }
 
-template<typename mayType>
-MAY_CONSTEXPR mayType cos(mayType rad)
+template<typename T>
+MAY_CONSTEXPR T cos(T rad)
 {
-	return may::cos_series(rad > static_cast<mayType>(pi) ? (static_cast<mayType>(pi) * 2) - rad : rad, 0);
+	return may::cos_series(rad > static_cast<T>(pi) ? (static_cast<T>(pi) * 2) - rad : rad, 0);
 }
 
-template<typename mayType>
-MAY_CONSTEXPR mayType log2_series(mayType b, int32_t n)
+template<typename T>
+MAY_CONSTEXPR T log2_series(T b, int32_t n)
 {
-	mayType number = static_cast<mayType>(2.0) * may::pow((b - static_cast<mayType>(1.0)) / (b + static_cast<mayType>(1.0)), 
-		static_cast<mayType>(2 * n + 1)) / static_cast<mayType>(2 * n + 1);
-	return number < static_cast<mayType>(precision) ? number : number + may::log2_series(b, n + 1);
+	T number = static_cast<T>(2.0) * may::pow((b - static_cast<T>(1.0)) / (b + static_cast<T>(1.0)), 
+		static_cast<T>(2 * n + 1)) / static_cast<T>(2 * n + 1);
+	return number < static_cast<T>(precision) ? number : number + may::log2_series(b, n + 1);
 }
 
-template<typename mayType>
-MAY_CONSTEXPR mayType log2(mayType b)
+template<typename T>
+MAY_CONSTEXPR T log2(T b)
 {
 	int32_t result = 0;
 
-	while (b >= static_cast<mayType>(2.0))
+	while (b >= static_cast<T>(2.0))
 	{
-		b /= static_cast<mayType>(2.0);
+		b /= static_cast<T>(2.0);
 		++result;
 	}
 
-	while (b < static_cast<mayType>(1.0))
+	while (b < static_cast<T>(1.0))
 	{
-		b *= static_cast<mayType>(2.0);
+		b *= static_cast<T>(2.0);
 		--result;
 	}
 
-	return static_cast<mayType>(result) + may::log2_series(b, 0) / static_cast<mayType>(ln2);
+	return static_cast<T>(result) + may::log2_series(b, 0) / static_cast<T>(ln2);
+}
+
+template<typename T, typename Q>
+MAY_CONSTEXPR Q MatrixProduct(const T& mat3, const Q& vec3)
+{
+	return Q{
+		mat3[0][0] * vec3[0] + mat3[0][1] * vec3[1] + mat3[0][2] * vec3[2],
+		mat3[1][0] * vec3[0] + mat3[1][1] * vec3[1] + mat3[1][2] * vec3[2],
+		mat3[2][0] * vec3[0] + mat3[2][1] * vec3[1] + mat3[2][2] * vec3[2]
+	};
 }
 
 }
