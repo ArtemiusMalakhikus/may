@@ -23,19 +23,22 @@
 #ifndef MAY_COMPILE_TIME
 #define MAY_COMPILE_TIME
 
-#define MAY_DEBUG
+#define MAY_NDEBUG
 
-#ifdef MAY_DEBUG
+#ifdef MAY_NDEBUG
 #define MAY_CONSTEXPR constexpr
 #else
 #define MAY_CONSTEXPR
 #endif
 
-namespace may_compile_time
+#include <cstdint>
+
+namespace may
 {
 
-MAY_CONSTEXPR auto pi = 3.14159265358979323846264338327950288;
-MAY_CONSTEXPR auto precision = 0.000001f;
+MAY_CONSTEXPR double pi = 3.14159265358979323846264338327950288;
+MAY_CONSTEXPR double precision = 0.000001;
+MAY_CONSTEXPR double ln2 = 0.6931471805599453;
 
 template<typename mayType>
 MAY_CONSTEXPR mayType abs(mayType absolute)
@@ -45,39 +48,67 @@ MAY_CONSTEXPR mayType abs(mayType absolute)
 
 MAY_CONSTEXPR uint64_t factorial(uint64_t n)
 {
-	return n == 0 ? 1 : n * may_compile_time::factorial(n - 1);
+	return n == 0 ? 1 : n * may::factorial(n - 1);
 }
 
 template<typename mayType>
-MAY_CONSTEXPR mayType pow(mayType base, uint32_t exp)
+MAY_CONSTEXPR mayType pow(mayType base, int32_t exp)
 {
-	return exp == 0 ? 1 : base * may_compile_time::pow(base, exp - 1);
+	return exp == 0 ? 1 : base * may::pow(base, exp - 1);
 }
 
 template<typename mayType>
-MAY_CONSTEXPR mayType sin_series(mayType rad, uint32_t n)
+MAY_CONSTEXPR mayType sin_series(mayType rad, int32_t n)
 {
-	mayType number = may_compile_time::pow(-1, n) * (may_compile_time::pow(rad, 2 * n + 1) / may_compile_time::factorial(2 * n + 1));
-	return may_compile_time::abs(number) < precision ? number : number + may_compile_time::sin_series(rad, n + 1);
+	mayType number = may::pow(-1, n) * (may::pow(rad, 2 * n + 1) / may::factorial(2 * n + 1));
+	return may::abs(number) < static_cast<mayType>(precision) ? number : number + may::sin_series(rad, n + 1);
 }
 
 template<typename mayType>
-MAY_CONSTEXPR mayType cos_series(mayType rad, uint32_t n)
+MAY_CONSTEXPR mayType cos_series(mayType rad, int32_t n)
 {
-	mayType number = may_compile_time::pow(-1, n) * (may_compile_time::pow(rad, 2 * n) / may_compile_time::factorial(2 * n));
-	return may_compile_time::abs(number) < precision ? number : number + may_compile_time::cos_series(rad, n + 1);
+	mayType number = may::pow(-1, n) * (may::pow(rad, 2 * n) / may::factorial(2 * n));
+	return may::abs(number) < static_cast<mayType>(precision) ? number : number + may::cos_series(rad, n + 1);
 }
 
 template<typename mayType>
 MAY_CONSTEXPR mayType sin(mayType rad)
 {
-	return may_compile_time::sin_series(rad > pi ? -((pi * 2) - rad) : rad, 0);
+	return may::sin_series(rad > static_cast<mayType>(pi) ? -((static_cast<mayType>(pi) * 2) - rad) : rad, 0);
 }
 
 template<typename mayType>
 MAY_CONSTEXPR mayType cos(mayType rad)
 {
-	return may_compile_time::cos_series(rad > pi ? (pi * 2) - rad : rad, 0);
+	return may::cos_series(rad > static_cast<mayType>(pi) ? (static_cast<mayType>(pi) * 2) - rad : rad, 0);
+}
+
+template<typename mayType>
+MAY_CONSTEXPR mayType log2_series(mayType b, int32_t n)
+{
+	mayType number = static_cast<mayType>(2.0) * may::pow((b - static_cast<mayType>(1.0)) / (b + static_cast<mayType>(1.0)), 
+		static_cast<mayType>(2 * n + 1)) / static_cast<mayType>(2 * n + 1);
+	return number < static_cast<mayType>(precision) ? number : number + may::log2_series(b, n + 1);
+}
+
+template<typename mayType>
+MAY_CONSTEXPR mayType log2(mayType b)
+{
+	int32_t result = 0;
+
+	while (b >= static_cast<mayType>(2.0))
+	{
+		b /= static_cast<mayType>(2.0);
+		++result;
+	}
+
+	while (b < static_cast<mayType>(1.0))
+	{
+		b *= static_cast<mayType>(2.0);
+		--result;
+	}
+
+	return static_cast<mayType>(result) + may::log2_series(b, 0) / static_cast<mayType>(ln2);
 }
 
 }
