@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include <iterator>
 #include <vector>
+#include <string>
+#include <algorithm>
 
 namespace may
 {
@@ -36,32 +38,32 @@ union Symbol
 	uint8_t perByte[4];
 };
 
-inline void EncodingUft8(const uint32_t& symbolForEncoding, std::vector<uint8_t>& encodedData)
+inline void EncodingUft8(const uint32_t& symbolForEncoding, uint8_t* encodedData, uint8_t& size)
 {
 	Symbol* symbol = (Symbol*)&symbolForEncoding;
 
 	if (0 <= symbol->all && symbol->all <= 0x7F)
 	{
-		encodedData.resize(1);
+		size = 1;
 		encodedData[0] = symbol->perByte[0];
 		return;
 	}
 	else if (0x80 <= symbol->all && symbol->all <= 0x7FF)
 	{
-		encodedData.resize(2);
+		size = 2;
 		encodedData[0] = 0xC0;
 		encodedData[1] = 0x80;
 	}
 	else if (0x800 <= symbol->all && symbol->all <= 0xFFFF)
 	{
-		encodedData.resize(3);
+		size = 3;
 		encodedData[0] = 0xE0;
 		encodedData[1] = 0x80;
 		encodedData[2] = 0x80;
 	}
 	else if (0x10000 <= symbol->all && symbol->all <= 0x10FFFF)
 	{
-		encodedData.resize(4);
+		size = 4;
 		encodedData[0] = 0xF0;
 		encodedData[1] = 0x80;
 		encodedData[2] = 0x80;
@@ -82,7 +84,7 @@ inline void EncodingUft8(const uint32_t& symbolForEncoding, std::vector<uint8_t>
 
 	uint8_t bit = 0;
 	uint8_t offset = 0;
-	for (int8_t j = encodedData.size() - 1; j >= 1; --j)
+	for (int8_t j = size - 1; j >= 1; --j)
 	{
 		for (uint8_t k = 0; k < 6; ++k)
 		{
@@ -93,7 +95,7 @@ inline void EncodingUft8(const uint32_t& symbolForEncoding, std::vector<uint8_t>
 		offset += 6;
 	}
 
-	for (uint8_t k = 0; k < 8 - encodedData.size() + 1; ++k)
+	for (uint8_t k = 0; k < 8 - size + 1; ++k)
 	{
 		encodedData[0] |= (symbol->all & (1 << bit)) >> offset;
 		++bit;
@@ -103,7 +105,33 @@ inline void EncodingUft8(const uint32_t& symbolForEncoding, std::vector<uint8_t>
 	}
 }
 
-inline void DecodingUtf8(const std::vector<uint8_t>& dataForDecoding, uint32_t& decodedSymbol)
+inline size_t GetSizeUft8(const uint32_t& symbolForEncoding)
+{
+	Symbol* symbol = (Symbol*)&symbolForEncoding;
+
+	if (0 <= symbol->all && symbol->all <= 0x7F)
+		return 1;
+	else if (0x80 <= symbol->all && symbol->all <= 0x7FF)
+		return 2;
+	else if (0x800 <= symbol->all && symbol->all <= 0xFFFF)
+		return 3;
+	else if (0x10000 <= symbol->all && symbol->all <= 0x10FFFF)
+		return 4;
+	else
+		return 0;
+}
+
+inline size_t GetSizeUft16(const uint8_t& symbolForDecoding)
+{
+	if ((symbolForDecoding & 0xE0) == 0xE0)
+		return 3;
+	else if ((symbolForDecoding & 0xC0) == 0xC0)
+		return 2;
+	else
+		return 1;
+}
+
+inline void DecodingUtf8(uint8_t* dataForDecoding, const uint8_t& size, uint32_t& decodedSymbol)
 {
 	Symbol* symbol = (Symbol*)&decodedSymbol;
 
@@ -128,7 +156,7 @@ inline void DecodingUtf8(const std::vector<uint8_t>& dataForDecoding, uint32_t& 
 
 	symbol->all = 0;
 	uint8_t offset = 0;
-	for (uint8_t j = dataForDecoding.size() - 1; j >= 1; --j)
+	for (uint8_t j = size - 1; j >= 1; --j)
 	{
 		symbol->all |= static_cast<uint32_t>(dataForDecoding[j] ^ 0x80) << offset;
 		offset += 6;
@@ -137,91 +165,82 @@ inline void DecodingUtf8(const std::vector<uint8_t>& dataForDecoding, uint32_t& 
 	symbol->all |= static_cast<uint32_t>(dataForDecoding[0] ^ mask) << offset;
 }
 
-inline void Utf16ToUft8Array(std::vector<uint16_t>& input, std::vector<uint8_t>& output)
+template<typename V, typename T>
+V Utf16ToUft8(const T& containerUtf16)
 {
-	uint32_t symbol = 0;
-	std::vector<uint8_t> data;
+	const uint16_t* utf16 = reinterpret_cast<const uint16_t*>(containerUtf16.data());
+	size_t size = sizeof(*containerUtf16.data()) * containerUtf16.size() / sizeof(uint16_t);
 
-	for (uint32_t i = 0; i < input.size(); ++i)
+	size_t utf8Size = 0;
+	for (size_t i = 0; i < size; ++i)
+		utf8Size += GetSizeUft8(utf16[i]);
+
+	V containerUtf8;
+	containerUtf8.resize(std::roundf(static_cast<float>(utf8Size) / sizeof(*containerUtf8.data())));
+	uint8_t* utf8 = reinterpret_cast<uint8_t*>(containerUtf8.data());
+	size_t utf8Index = 0;
+
+	for (size_t i = 0; i < size; ++i)
 	{
-		EncodingUft8(input[i], data);
-		std::copy(data.begin(), data.end(), std::back_inserter(output));
+		uint8_t data[4];
+		uint8_t size = 0;
+		EncodingUft8(utf16[i], data, size);
+		for (uint8_t i = 0; i < size; ++i)
+			utf8[utf8Index++] = data[i];
 	}
+
+	return std::move(containerUtf8);
 }
 
-inline void Utf8ToUft16Array(std::vector<uint8_t>& input, std::vector<uint16_t>& output)
+template<typename V, typename T>
+V Utf8ToUft16(const T& containerUtf8)
 {
-	uint32_t symbol = 0;
-	std::vector<uint8_t> data;
+	const uint8_t* utf8 = reinterpret_cast<const uint8_t*>(containerUtf8.data());
+	size_t size = sizeof(*containerUtf8.data()) * containerUtf8.size();
 
-	for (uint32_t i = 0; i < input.size(); ++i)
+	size_t utf16Size = 0;
+	size_t symbolSize = 0;
+	for (size_t i = 0; i < size; i += symbolSize)
 	{
-		if ((input[i] & 0xE0) == 0xE0)
+		symbolSize = GetSizeUft16(utf8[i]);
+		++utf16Size;
+	}
+
+	V containerUtf16;
+	containerUtf16.resize(std::round(utf16Size * static_cast<float>(sizeof(uint16_t)) / sizeof(*containerUtf16.data())));
+	uint16_t* utf16 = reinterpret_cast<uint16_t*>(containerUtf16.data());
+	size_t utf16Index = 0;
+
+	for (size_t i = 0; i < size; ++i)
+	{
+		uint8_t data[4];
+		uint8_t size = 0;
+		uint32_t symbol = 0;
+
+		if ((utf8[i] & 0xE0) == 0xE0)
 		{
-			data.resize(3);
-			data[0] = input[i];
-			data[1] = input[++i];
-			data[2] = input[++i];
+			size = 3;
+			data[0] = utf8[i];
+			data[1] = utf8[++i];
+			data[2] = utf8[++i];
 		}
-		else if ((input[i] & 0xC0) == 0xC0)
+		else if ((utf8[i] & 0xC0) == 0xC0)
 		{
-			data.resize(2);
-			data[0] = input[i];
-			data[1] = input[++i];
+			size = 2;
+			data[0] = utf8[i];
+			data[1] = utf8[++i];
 		}
 		else
 		{
-			data.resize(1);
-			data[0] = input[i];
+			size = 1;
+			data[0] = utf8[i];
 		}
 
-		DecodingUtf8(data, symbol);
-
-		output.push_back(symbol);
+		DecodingUtf8(data, size, symbol);
+		utf16[utf16Index++] = symbol;
 	}
-}
 
-inline void Utf16ToUft8String(const std::wstring& input, std::string& output)
-{
-	std::vector<uint8_t> data;
-
-	for (uint32_t i = 0; i < input.size(); ++i)
-	{
-		EncodingUft8(input[i], data);
-		std::copy(data.begin(), data.end(), std::back_inserter(output));
-	}
-}
-
-inline void Utf8ToUft16String(std::string& input, std::wstring& output)
-{
-	uint32_t symbol = 0;
-	std::vector<uint8_t> data;
-
-	for (uint32_t i = 0; i < input.size(); ++i)
-	{
-		if ((input[i] & 0xE0) == 0xE0)
-		{
-			data.resize(3);
-			data[0] = input[i];
-			data[1] = input[++i];
-			data[2] = input[++i];
-		}
-		else if ((input[i] & 0xC0) == 0xC0)
-		{
-			data.resize(2);
-			data[0] = input[i];
-			data[1] = input[++i];
-		}
-		else
-		{
-			data.resize(1);
-			data[0] = input[i];
-		}
-
-		DecodingUtf8(data, symbol);
-
-		output.push_back(symbol);
-	}
+	return std::move(containerUtf16);
 }
 
 }
