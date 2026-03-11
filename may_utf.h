@@ -20,14 +20,10 @@
 * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 
-#ifndef MAY_ENCODING_UFT_H
-#define MAY_ENCODING_UFT_H
+#ifndef MAY_UTF_H
+#define MAY_UTF_H
 
-#include <stdint.h>
-#include <iterator>
-#include <vector>
-#include <string>
-#include <algorithm>
+#include <cstdint>
 
 namespace may
 {
@@ -38,7 +34,7 @@ union Symbol
 	uint8_t perByte[4];
 };
 
-inline void EncodingUft8(const uint32_t& symbolForEncoding, uint8_t* encodedData, uint8_t& size)
+inline void EncodingUtf8(const uint32_t& symbolForEncoding, uint8_t* encodedData, uint8_t& size)
 {
 	Symbol* symbol = (Symbol*)&symbolForEncoding;
 
@@ -105,7 +101,7 @@ inline void EncodingUft8(const uint32_t& symbolForEncoding, uint8_t* encodedData
 	}
 }
 
-inline size_t GetSizeUft8(const uint32_t& symbolForEncoding)
+inline size_t GetSizeUtf8(const uint32_t& symbolForEncoding)
 {
 	Symbol* symbol = (Symbol*)&symbolForEncoding;
 
@@ -121,9 +117,11 @@ inline size_t GetSizeUft8(const uint32_t& symbolForEncoding)
 		return 0;
 }
 
-inline size_t GetSizeUft16(const uint8_t& symbolForDecoding)
+inline size_t GetSymbolSize(const uint8_t& symbolForDecoding)
 {
-	if ((symbolForDecoding & 0xE0) == 0xE0)
+	if ((symbolForDecoding & 0xF0) == 0xF0)
+		return 4;
+	else if ((symbolForDecoding & 0xE0) == 0xE0)
 		return 3;
 	else if ((symbolForDecoding & 0xC0) == 0xC0)
 		return 2;
@@ -131,52 +129,55 @@ inline size_t GetSizeUft16(const uint8_t& symbolForDecoding)
 		return 1;
 }
 
-inline void DecodingUtf8(uint8_t* dataForDecoding, const uint8_t& size, uint32_t& decodedSymbol)
+inline uint32_t DecodingUtf8(const uint8_t* dataForDecoding, size_t& size)
 {
-	Symbol* symbol = (Symbol*)&decodedSymbol;
-
 	uint8_t mask = 0;
 	if ((dataForDecoding[0] & 0xF0) == 0xF0)
 	{
 		mask = 0xF0;
+		size = 4;
 	}
 	else if ((dataForDecoding[0] & 0xE0) == 0xE0)
 	{
 		mask = 0xE0;
+		size = 3;
 	}
 	else if ((dataForDecoding[0] & 0xC0) == 0xC0)
 	{
 		mask = 0xC0;
+		size = 2;
 	}
 	else
 	{
-		symbol->all = dataForDecoding[0];
-		return;
+		size = 1;
+		return dataForDecoding[0];
 	}
 
-	symbol->all = 0;
+	Symbol symbol{ 0 };
 	uint8_t offset = 0;
 	for (uint8_t j = size - 1; j >= 1; --j)
 	{
-		symbol->all |= static_cast<uint32_t>(dataForDecoding[j] ^ 0x80) << offset;
+		symbol.all |= static_cast<uint32_t>(dataForDecoding[j] ^ 0x80) << offset;
 		offset += 6;
 	}
 
-	symbol->all |= static_cast<uint32_t>(dataForDecoding[0] ^ mask) << offset;
+	symbol.all |= static_cast<uint32_t>(dataForDecoding[0] ^ mask) << offset;
+
+	return symbol.all;
 }
 
 template<typename V, typename T>
-V Utf16ToUft8(const T& containerUtf16)
+V Utf16ToUtf8(const T& containerUtf16)
 {
 	const uint16_t* utf16 = reinterpret_cast<const uint16_t*>(containerUtf16.data());
 	size_t size = sizeof(*containerUtf16.data()) * containerUtf16.size() / sizeof(uint16_t);
 
 	size_t utf8Size = 0;
 	for (size_t i = 0; i < size; ++i)
-		utf8Size += GetSizeUft8(utf16[i]);
+		utf8Size += GetSizeUtf8(utf16[i]);
 
 	V containerUtf8;
-	containerUtf8.resize(std::roundf(static_cast<float>(utf8Size) / sizeof(*containerUtf8.data())));
+	containerUtf8.resize(std::ceilf(static_cast<float>(utf8Size) / sizeof(*containerUtf8.data())));
 	uint8_t* utf8 = reinterpret_cast<uint8_t*>(containerUtf8.data());
 	size_t utf8Index = 0;
 
@@ -184,7 +185,7 @@ V Utf16ToUft8(const T& containerUtf16)
 	{
 		uint8_t data[4];
 		uint8_t size = 0;
-		EncodingUft8(utf16[i], data, size);
+		EncodingUtf8(utf16[i], data, size);
 		for (uint8_t i = 0; i < size; ++i)
 			utf8[utf8Index++] = data[i];
 	}
@@ -193,7 +194,7 @@ V Utf16ToUft8(const T& containerUtf16)
 }
 
 template<typename V, typename T>
-V Utf8ToUft16(const T& containerUtf8)
+V Utf8ToUtf16(const T& containerUtf8)
 {
 	const uint8_t* utf8 = reinterpret_cast<const uint8_t*>(containerUtf8.data());
 	size_t size = sizeof(*containerUtf8.data()) * containerUtf8.size();
@@ -202,47 +203,21 @@ V Utf8ToUft16(const T& containerUtf8)
 	size_t symbolSize = 0;
 	for (size_t i = 0; i < size; i += symbolSize)
 	{
-		symbolSize = GetSizeUft16(utf8[i]);
+		symbolSize = GetSymbolSize(utf8[i]);
 		++utf16Size;
 	}
 
 	V containerUtf16;
-	containerUtf16.resize(std::round(utf16Size * static_cast<float>(sizeof(uint16_t)) / sizeof(*containerUtf16.data())));
+	containerUtf16.resize(std::ceilf(utf16Size * static_cast<float>(sizeof(uint16_t)) / sizeof(*containerUtf16.data())));
 	uint16_t* utf16 = reinterpret_cast<uint16_t*>(containerUtf16.data());
 	size_t utf16Index = 0;
 
-	for (size_t i = 0; i < size; ++i)
-	{
-		uint8_t data[4];
-		uint8_t size = 0;
-		uint32_t symbol = 0;
-
-		if ((utf8[i] & 0xE0) == 0xE0)
-		{
-			size = 3;
-			data[0] = utf8[i];
-			data[1] = utf8[++i];
-			data[2] = utf8[++i];
-		}
-		else if ((utf8[i] & 0xC0) == 0xC0)
-		{
-			size = 2;
-			data[0] = utf8[i];
-			data[1] = utf8[++i];
-		}
-		else
-		{
-			size = 1;
-			data[0] = utf8[i];
-		}
-
-		DecodingUtf8(data, size, symbol);
-		utf16[utf16Index++] = symbol;
-	}
+	for (size_t i = 0; i < size; i += symbolSize)
+		utf16[utf16Index++] = DecodingUtf8(&utf8[i], symbolSize);
 
 	return std::move(containerUtf16);
 }
 
 }
 
-#endif // !MAY_ENCODING_UFT_H
+#endif // !MAY_UTF_H
